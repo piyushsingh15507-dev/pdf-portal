@@ -1,0 +1,29 @@
+# Ignore binary executables and temporary test files
+*.exe
+*.bin
+*.m3u8
+*.tmp
+*.log
+*.zip
+Logs/
+__pycache__/
+Classplus_Video/
+Kinematics*/
+PS session*/
+stream/
+tmp_m3u8_run/
+Course_*/
+check_*.py
+print_*.py
+read_*.py
+search_*.py
+test_*.py
+compare_*.py
+decrypt_*.py
+find_*.py
+probe_*.py
+get_response_details.py
+list_*.py
+run_fresh_download.py
+Create_Zip.bat
+upload_to_github.bat
