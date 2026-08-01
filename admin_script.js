@@ -82,6 +82,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const activeStudentsBadge = document.getElementById('active-students-badge');
+    const studentsTbody = document.getElementById('students-tbody');
+
+    // Auto-refresh live student sessions every 5 seconds
+    setInterval(loadAdminData, 5000);
+
     async function loadAdminData() {
         try {
             const res = await fetch('/api/admin/get-data');
@@ -92,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     adminTokenInput.value = data.admin_token;
                 }
                 renderPasscodesTable(data.access_codes || {});
+                renderStudentsTable(data.student_sessions || [], data.blocked_ips || []);
             }
         } catch (err) {
             console.error('Error loading admin data:', err);
@@ -105,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (entries.length === 0) {
             passcodesTbody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
+                    <td colspan="4" style="text-align: center; padding: 30px; color: #9ca3af;">
                         🔑 No student access passcodes created yet. Fill the form on the left to create one!
                     </td>
                 </tr>`;
@@ -130,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         passcodesTbody.innerHTML = html;
 
-        // Attach delete listeners
         document.querySelectorAll('.btn-delete-code').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const codeToDelete = e.target.getAttribute('data-code');
@@ -147,6 +153,69 @@ document.addEventListener('DOMContentLoaded', () => {
                         loadAdminData();
                     } else {
                         alert(`Error deleting passcode: ${data.error}`);
+                    }
+                } catch (err) {
+                    alert(`Error: ${err.message}`);
+                }
+            });
+        });
+    }
+
+    function renderStudentsTable(sessionsList, blockedIpsList) {
+        activeStudentsBadge.innerText = `${sessionsList.length} Connected Students`;
+
+        if (sessionsList.length === 0) {
+            studentsTbody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="6" style="text-align: center; padding: 30px; color: #9ca3af;">
+                        📡 No student activity recorded yet. When students enter their passcode, their name and IP will appear here live!
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        let html = '';
+        sessionsList.forEach(s => {
+            const isBlocked = blockedIpsList.includes(s.ip);
+            const statusLabel = isBlocked ? 
+                '<span style="color:#ef4444; font-weight:600;">🚫 Blocked</span>' : 
+                '<span style="color:#34d399; font-weight:600;">🟢 Online</span>';
+
+            html += `
+                <tr>
+                    <td><b>${escapeHtml(s.name)}</b></td>
+                    <td><span class="code-tag">${escapeHtml(s.passcode)}</span></td>
+                    <td><code>${escapeHtml(s.ip)}</code></td>
+                    <td><small style="color:#9ca3af;">${escapeHtml(s.time)}</small></td>
+                    <td>${statusLabel}</td>
+                    <td style="text-align: center;">
+                        <button class="btn btn-danger btn-block-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" ${isBlocked ? 'disabled' : ''}>
+                            ${isBlocked ? 'Blocked' : '🚫 Block Student'}
+                        </button>
+                    </td>
+                </tr>`;
+        });
+        studentsTbody.innerHTML = html;
+
+        document.querySelectorAll('.btn-block-ip').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const ipToBlock = e.target.getAttribute('data-ip');
+                const studentName = e.target.getAttribute('data-name');
+
+                if (!confirm(`Are you sure you want to BLOCK student '${studentName}' (${ipToBlock}) from accessing all materials?`)) return;
+
+                try {
+                    const res = await fetch('/api/admin/block-ip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip: ipToBlock })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(`Student '${studentName}' (${ipToBlock}) has been BLOCKED!`);
+                        loadAdminData();
+                    } else {
+                        alert(`Error: ${data.error}`);
                     }
                 } catch (err) {
                     alert(`Error: ${err.message}`);

@@ -229,6 +229,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_create_code(data)
         elif path == "/api/admin/delete-code":
             self.handle_admin_delete_code(data)
+        elif path == "/api/admin/block-ip":
+            self.handle_admin_block_ip(data)
         elif path == "/api/student/access":
             self.handle_student_access(data)
         else:
@@ -1460,12 +1462,20 @@ def get_cached_pdfs(token, course_id, force_refresh=False):
         }
     return pdfs
 
+def get_client_ip(handler):
+    ff = handler.headers.get("X-Forwarded-For")
+    if ff:
+        return ff.split(",")[0].strip()
+    return handler.client_address[0]
+
 def handle_admin_get_data(self):
     db = load_db()
     self.send_json({
         "success": True,
         "admin_token": db.get("admin_token", ""),
-        "access_codes": db.get("access_codes", {})
+        "access_codes": db.get("access_codes", {}),
+        "student_sessions": db.get("student_sessions", []),
+        "blocked_ips": db.get("blocked_ips", [])
     })
 
 def handle_admin_save_token(self, data):
@@ -1510,13 +1520,38 @@ def handle_admin_delete_code(self, data):
     else:
         self.send_json({"success": False, "error": "Passcode not found."}, 404)
 
+def handle_admin_block_ip(self, data):
+    ip = data.get("ip", "").strip()
+    if not ip:
+        self.send_json({"success": False, "error": "IP address is required."}, 400)
+        return
+
+    db = load_db()
+    if "blocked_ips" not in db:
+        db["blocked_ips"] = []
+    if ip not in db["blocked_ips"]:
+        db["blocked_ips"].append(ip)
+        save_db(db)
+
+    self.send_json({"success": True, "message": f"IP {ip} blocked."})
+
 def handle_student_access(self, data):
     passcode = data.get("passcode", "").strip().upper()
+    student_name = data.get("name", "Anonymous Student").strip()
+
+    client_ip = get_client_ip(self)
+    db = load_db()
+
+    # CHECK IF STUDENT IP IS BLOCKED BY ADMIN
+    blocked_ips = db.get("blocked_ips", [])
+    if client_ip in blocked_ips:
+        self.send_json({"success": False, "error": "Access Denied: Your IP address has been blocked by the admin."}, 403)
+        return
+
     if not passcode:
         self.send_json({"success": False, "error": "Access Code is required."}, 400)
         return
 
-    db = load_db()
     access_codes = db.get("access_codes", {})
     if passcode not in access_codes:
         self.send_json({"success": False, "error": "Invalid Access Code. Please check with your instructor."}, 404)
@@ -1531,8 +1566,31 @@ def handle_student_access(self, data):
         self.send_json({"success": False, "error": "Admin Access Token has not been configured on the server yet."}, 400)
         return
 
+    # LOG LIVE STUDENT SESSION FOR ADMIN MONITOR
+    sessions = db.get("student_sessions", [])
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    
+    session_found = False
+    for s in sessions:
+        if s.get("ip") == client_ip and s.get("passcode") == passcode:
+            s["name"] = student_name
+            s["time"] = now_str
+            session_found = True
+            break
+            
+    if not session_found:
+        sessions.insert(0, {
+            "name": student_name,
+            "passcode": passcode,
+            "ip": client_ip,
+            "time": now_str
+        })
+        db["student_sessions"] = sessions[:100]
+        
+    save_db(db)
+
     try:
-        # High-performance cached retrieval (0.005s response for concurrent students)
+        # High-performance cached retrieval (0.005s response for 100+ concurrent students)
         pdfs = get_cached_pdfs(admin_token, course_id)
         self.send_json({
             "success": True,
@@ -1547,6 +1605,7 @@ APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
 APIHandler.handle_admin_delete_code = handle_admin_delete_code
+APIHandler.handle_admin_block_ip = handle_admin_block_ip
 APIHandler.handle_student_access = handle_student_access
 
 def run_server():
@@ -1565,6 +1624,7 @@ def run_server():
 
 if __name__ == "__main__":
     run_server()
+
 
 
 

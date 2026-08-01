@@ -78,20 +78,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentPdfs = [];
 
-    // Check if passcode is saved in sessionStorage
+    const studentNameInput = document.getElementById('student-name');
+
+    // Check if passcode and name are saved in sessionStorage
     const savedPasscode = sessionStorage.getItem('student_passcode');
-    if (savedPasscode) {
+    const savedName = sessionStorage.getItem('student_name');
+    if (savedPasscode && savedName) {
         passcodeInput.value = savedPasscode;
-        unlockMaterials(savedPasscode);
+        studentNameInput.value = savedName;
+        unlockMaterials(savedPasscode, savedName);
     }
 
     btnUnlock.addEventListener('click', () => {
+        const name = studentNameInput.value.trim();
         const code = passcodeInput.value.trim();
-        if (!code) {
-            showError('Please enter an Access Code.');
+        
+        if (!name) {
+            showError('Please enter your Full Name.');
+            studentNameInput.focus();
             return;
         }
-        unlockMaterials(code);
+        if (!code) {
+            showError('Please enter an Access Passcode.');
+            passcodeInput.focus();
+            return;
+        }
+        unlockMaterials(code, name);
     });
 
     passcodeInput.addEventListener('keypress', (e) => {
@@ -102,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnChangeCode.addEventListener('click', () => {
         sessionStorage.removeItem('student_passcode');
+        sessionStorage.removeItem('student_name');
         loginSection.classList.remove('hidden');
         dashboardSection.classList.add('hidden');
         passcodeInput.value = '';
@@ -124,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    async function unlockMaterials(passcode) {
+    async function unlockMaterials(passcode, name) {
         hideError();
         const spinner = btnUnlock.querySelector('.spinner');
         const btnText = btnUnlock.querySelector('.btn-text');
@@ -135,16 +148,14 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let sec = 5; sec >= 1; sec--) {
             btnText.innerText = `🛡️ Security Inspection... (${sec}s)`;
             
-            // Check DevTools status continuously during countdown
             if (isDevToolsOpen()) {
                 triggerSecurityLockout();
-                return; // Abort completely! Zero network request sent to backend!
+                return;
             }
             
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Final check before sending API request
         if (isDevToolsOpen()) {
             triggerSecurityLockout();
             return;
@@ -152,21 +163,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         btnText.innerText = '⚡ Loading Materials...';
 
-        // STEP 2: Only send network API request AFTER 5s security inspection passes clean!
+        // STEP 2: Send network API request with student Name and Passcode
         try {
             const res = await fetch('/api/student/access', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode })
+                body: JSON.stringify({ passcode, name })
             });
             const data = await res.json();
 
             if (data.success && Array.isArray(data.pdfs)) {
                 sessionStorage.setItem('student_passcode', passcode);
+                sessionStorage.setItem('student_name', name);
                 currentPdfs = data.pdfs;
                 
                 courseTitleDisplay.innerText = data.course_name ? `📖 ${data.course_name}` : '📖 Course PDF Materials';
-                accessCodeBadge.innerText = `Access Code: ${passcode}`;
+                accessCodeBadge.innerText = `Student: ${name} | Code: ${passcode}`;
 
                 renderPdfTable(currentPdfs);
                 populateFolderFilter(currentPdfs);

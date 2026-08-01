@@ -74,7 +74,7 @@
                 </div>
             </section>
 
-            <!-- Right Side: Active Passcodes List & Real-time Integration -->
+            <!-- Right Side: Active Passcodes List & Live Student Monitor -->
             <section class="card data-card">
                 <div class="results-header">
                     <h2 class="section-title">📋 Active Student Access Passcodes</h2>
@@ -93,8 +93,36 @@
                         </thead>
                         <tbody id="passcodes-tbody">
                             <tr class="empty-row">
-                                <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
+                                <td colspan="4" style="text-align: center; padding: 30px; color: #9ca3af;">
                                     🔑 No student access passcodes created yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 3. Live Student Activity & IP Monitor -->
+                <div class="results-header" style="margin-top: 24px;">
+                    <h2 class="section-title">📡 Live Student Activity & IP Monitor</h2>
+                    <span class="stats-badge" id="active-students-badge" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">0 Connected Students</span>
+                </div>
+
+                <div class="passcode-table-container">
+                    <table class="passcode-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Passcode Used</th>
+                                <th>IP Address</th>
+                                <th>Last Active</th>
+                                <th>Status</th>
+                                <th style="width: 120px; text-align: center;">Admin Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-tbody">
+                            <tr class="empty-row">
+                                <td colspan="6" style="text-align: center; padding: 30px; color: #9ca3af;">
+                                    📡 No active student sessions recorded yet.
                                 </td>
                             </tr>
                         </tbody>
