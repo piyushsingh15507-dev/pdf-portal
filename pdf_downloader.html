@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classplus PDF Direct Downloader Portal</title>
+    <!-- Google Fonts for typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="pdf_style.css">
+    <script src="pdf_script.js" defer></script>
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Top Header Navigation -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">📄</div>
+                <div>
+                    <h1>Classplus PDF Portal</h1>
+                    <p class="tagline">Direct PDF Extractor & Organized Batch Downloader</p>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="/index.html" class="nav-btn">📹 Video Downloader</a>
+                <a href="/pdf_downloader.html" class="nav-btn active">📄 PDF Downloader</a>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Control Panel -->
+            <section class="card control-panel">
+                <div class="panel-section">
+                    <h3 class="section-title">🔑 Authentication & Course Setup</h3>
+                    <div class="form-grid">
+                        <!-- Access Token Input -->
+                        <div class="form-group span-2">
+                            <label for="pdf-token">Classplus Access Token (x-access-token)</label>
+                            <input type="text" id="pdf-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
+                            <span class="help-text">Your Classplus user access token. Required to query course content.</span>
+                        </div>
+
+                        <!-- Auto-Discovery Dropdown -->
+                        <div class="form-group span-2">
+                            <label for="pdf-user-courses">Auto-Discovered Purchased Courses</label>
+                            <div class="input-group">
+                                <select id="pdf-user-courses">
+                                    <option value="">-- Enter Access Token above & click Auto-Load --</option>
+                                </select>
+                                <button id="btn-pdf-load-courses" class="btn btn-secondary">Auto-Load</button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Course ID Input -->
+                        <div class="form-group span-2">
+                            <label for="pdf-course-id">Or Manual Course ID</label>
+                            <div class="input-group">
+                                <input type="text" id="pdf-course-id" placeholder="e.g. 297752" autocomplete="off">
+                                <button id="btn-pdf-scan" class="btn btn-primary">
+                                    <span class="btn-text">🔍 Scan Course PDFs</span>
+                                    <span class="spinner hidden"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch Download Actions -->
+                <div class="panel-section">
+                    <h3 class="section-title">⚡ Batch Actions & Links Export</h3>
+                    <div class="batch-buttons">
+                        <button id="btn-pdf-export-txt" class="btn btn-secondary export-btn" disabled>
+                            📄 Export PDF Links (.txt)
+                        </button>
+                        <button id="btn-pdf-batch-download" class="btn btn-primary batch-btn" disabled>
+                            📥 Download All PDFs to Disk
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Progress Card -->
+                <div class="panel-section progress-section hidden" id="progress-card">
+                    <h3 class="section-title">⏳ Batch Download Progress</h3>
+                    <div class="progress-info">
+                        <span id="batch-status-text">Starting download...</span>
+                        <span id="batch-progress-pct">0%</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="batch-progress-bar"></div>
+                    </div>
+                    <div class="current-item-name" id="batch-current-title">--</div>
+                    <div class="terminal-logs" id="batch-logs-container">
+                        <pre id="batch-logs-text">Waiting for logs...</pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Results Panel -->
+            <section class="card results-panel">
+                <div class="results-header">
+                    <h2 class="section-title" style="margin: 0;">📚 Extracted PDF Materials</h2>
+                    <div class="stats-badge" id="stats-badge">0 PDFs Found</div>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="filter-bar">
+                    <input type="text" id="pdf-search-input" placeholder="🔎 Filter by PDF title or folder path..." disabled>
+                    <select id="pdf-folder-filter" disabled>
+                        <option value="ALL">All Folders</option>
+                    </select>
+                </div>
+
+                <!-- PDF List Container -->
+                <div class="pdf-table-container">
+                    <table class="pdf-table" id="pdf-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th>Title & File Name</th>
+                                <th>Folder Path</th>
+                                <th style="width: 140px; text-align: center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pdf-list-tbody">
+                            <tr class="empty-row">
+                                <td colspan="4">
+                                    <div class="empty-state">
+                                        <div class="empty-icon">📁</div>
+                                        <p>No PDFs scanned yet.</p>
+                                        <small>Enter your Access Token & Course ID on the left to extract all direct PDF download links!</small>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Classplus PDF Direct Downloader &copy; 2026 | Standalone Utility</p>
+        </footer>
+    </div>
+</body>
+</html>

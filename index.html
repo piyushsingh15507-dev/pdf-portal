@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classplus HLS Video Downloader & Decryptor</title>
+    <!-- Outfit Font from Google Fonts for a premium typography feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="app-container">
+        <header class="app-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <div>
+                    <h1 style="font-size: 1.6rem; margin: 0;">Classplus HLS Downloader</h1>
+                    <p class="tagline" style="margin: 0;">Stream download & AES-128 key injection decryptor</p>
+                </div>
+            </div>
+            <div class="nav-links" style="display: flex; gap: 12px;">
+                <a href="/index.html" class="nav-btn active" style="padding: 10px 18px; border-radius: 10px; text-decoration: none; font-size: 0.9rem; font-weight: 600; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6);">📹 Video Downloader</a>
+                <a href="/pdf_downloader.html" class="nav-btn" style="padding: 10px 18px; border-radius: 10px; text-decoration: none; font-size: 0.9rem; font-weight: 600; color: #94a3b8; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">📄 PDF Downloader</a>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Panel: Input & Controls -->
+            <section class="card control-panel">
+                <!-- Course Explorer & Auto-Discovery Input -->
+                <div class="panel-section">
+                    <h3 class="section-title">📂 Course Auto-Discovery & Batch Actions</h3>
+                    <div class="form-grid">
+                        <div class="form-group span-2">
+                            <label for="select-user-course">Select Purchased Course (Auto-Discovered from Token)</label>
+                            <div class="input-group">
+                                <select id="select-user-course" style="flex: 1; padding: 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px;">
+                                    <option value="">-- Enter Access Token below to auto-load your courses --</option>
+                                </select>
+                                <button id="btn-load-courses" class="btn btn-secondary" style="white-space: nowrap;">Auto-Find</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="course-id">Or Enter Manual Course ID</label>
+                            <div class="input-group">
+                                <input type="text" id="course-id" placeholder="e.g. 297752" autocomplete="off">
+                                <button id="btn-explore" class="btn btn-secondary">Explore</button>
+                            </div>
+                        </div>
+
+                        <!-- Batch Action Buttons -->
+                        <div class="form-group span-2" style="display: flex; gap: 10px; margin-top: 5px;">
+                            <button id="btn-export-txt" class="btn btn-secondary" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: white;">
+                                📄 Export Links (.txt)
+                            </button>
+                            <button id="btn-batch-download" class="btn btn-primary" style="flex: 1; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                                ⚡ Batch Download All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <label for="stream-url" class="section-title">HLS Stream Playlist URL</label>
+                    <div class="input-group">
+                        <input type="text" id="stream-url" placeholder="Paste .m3u8 master/quality URL or CloudFront link..." autocomplete="off">
+                        <button id="btn-fetch" class="btn btn-primary">
+                            <span class="btn-text">Fetch Info</span>
+                            <span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Decryption Toggle & Panel -->
+                <div class="panel-section collapsible-section">
+                    <button class="collapsible-header" id="decryption-toggle">
+                        <span class="header-title">🔑 Decryption Settings (Auto-Extractor)</span>
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="collapsible-content active" id="decryption-content">
+                        <div class="form-grid">
+                            <!-- Auth Token input (Way 2) -->
+                            <div class="form-group span-2">
+                                <label for="auth-token">Classplus Access Token (x-access-token)</label>
+                                <input type="text" id="auth-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
+                                <span class="help-text">Provide this to let the tool auto-query the Classplus API to extract the key.</span>
+                            </div>
+                            
+                            <!-- o1 input (Way 1 manual) -->
+                            <div class="form-group span-2">
+                                <label for="o1-token">o1 Decryption Token (Base64) / Encrypted Content ID</label>
+                                <input type="text" id="o1-token" placeholder="Optional: Paste raw o1 token value or encrypted Content ID..." autocomplete="off">
+                                <span class="help-text">Directly decodes the key/IV. Not needed if using Course Explorer.</span>
+                            </div>
+
+                            <!-- Manual Key Fallbacks -->
+                            <div class="form-group">
+                                <label for="dec-key">AES-128 Key (Hex / Base64)</label>
+                                <input type="text" id="dec-key" placeholder="Auto-filled or manual key" autocomplete="off">
+                                <span class="help-text">Manual override key bytes.</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="dec-iv">IV (Hex / Base64)</label>
+                                <input type="text" id="dec-iv" placeholder="Auto-filled or manual IV" autocomplete="off">
+                                <span class="help-text">Manual override IV.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Selection (Hidden until fetched) -->
+                <div class="panel-section hidden" id="quality-section">
+                    <h3 class="section-title">Select Quality Stream</h3>
+                    <div class="quality-list" id="quality-list">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Output Configuration -->
+                <div class="panel-section">
+                    <h3 class="section-title">Download Options</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="output-name">Output File Name</label>
+                            <input type="text" id="output-name" placeholder="downloaded_video" value="Classplus_Video" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="output-format">Format</label>
+                            <div class="select-wrapper">
+                                <select id="output-format">
+                                    <option value="mp4" selected>MP4 (.mp4)</option>
+                                    <option value="mkv">MKV (.mkv)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="btn-download" class="btn btn-success" disabled>
+                            <span>Download & Decrypt</span>
+                        </button>
+                        <button id="btn-cancel" class="btn btn-danger hidden">
+                            <span>Cancel Download</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Logs & Progress -->
+            <section class="card progress-panel">
+                <div class="progress-header">
+                    <h2 class="card-title">Process Monitor</h2>
+                    <span class="status-badge" id="status-badge">Idle</span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container">
+                    <div class="circular-progress">
+                        <svg class="progress-ring" width="160" height="160">
+                            <circle class="progress-ring-bg" stroke="#1e293b" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
+                            <circle class="progress-ring-bar" stroke="url(#progress-gradient)" stroke-width="8" stroke-dasharray="439.82" stroke-dashoffset="439.82" stroke-linecap="round" fill="transparent" r="70" cx="80" cy="80" />
+                            <defs>
+                                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#10b981" />
+                                    <stop offset="100%" stop-color="#8b5cf6" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="progress-ring-text">
+                            <span class="percentage" id="progress-percentage">0%</span>
+                            <span class="status-text" id="progress-status">Ready</span>
+                        </div>
+                    </div>
+
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Speed</span>
+                            <span class="meta-value" id="download-speed">0 Mbps</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">ETA</span>
+                            <span class="meta-value" id="download-eta">--:--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Box -->
+                <div class="console-log-section">
+                    <div class="console-header">
+                        <span>Terminal Output</span>
+                        <button id="btn-copy-logs" class="btn btn-secondary btn-sm">Copy Logs</button>
+                    </div>
+                    <div class="console-body" id="console-logs">
+                        <div class="console-line system">[SYSTEM] Awaiting input URL. Ready to fetch stream manifest...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Course Explorer Card (Full width!) -->
+        <section class="card course-explorer hidden" id="course-explorer-card">
+            <div class="explorer-header">
+                <div class="header-info">
+                    <h2 class="card-title">📚 Course Browser</h2>
+                    <span class="explorer-path" id="explorer-path">Root Path: /</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="btn-back-folder" disabled>⬅ Back Folder</button>
+            </div>
+            <div class="explorer-list" id="explorer-list">
+                <!-- Folders and videos listed here dynamically -->
+            </div>
+        </section>
+
+        <footer class="app-footer">
+            <p>Runs locally via Python backend and uses <strong>N_m3u8DL-RE</strong> for downloading.</p>
+        </footer>
+    </div>
+</body>
+</html>

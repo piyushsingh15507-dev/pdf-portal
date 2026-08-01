@@ -1,0 +1,20 @@
+﻿LOG 2026/08/01
+Save Path: C:\Users\HP\Downloads\hls live classplus\Logs
+Task Start: 2026/08/01 15:25:58
+Task CommandLine: "C:\Users\HP\Downloads\hls live classplus\N_m3u8DL-RE.exe" "C:\Users\HP\Downloads\hls live classplus\_temp_manifest.m3u8" --save-name Classplus_Video --del-after-done -M format=mp4 --auto-select --log-level INFO
+
+15:25:58.716 INFO : N_m3u8DL-RE (Beta version) 20260628
+15:25:58.727 EXTRA: ffmpeg => C:\Users\HP\Downloads\hls live classplus\ffmpeg.exe
+15:25:58.730 INFO : Loading URL: C:\Users\HP\Downloads\hls live classplus\_temp_manifest.m3u8
+15:25:58.762 INFO : Content Matched: HTTP Live Streaming
+15:25:58.764 INFO : Parsing streams...
+15:25:58.850 WARN : Writing meta json
+15:25:58.855 INFO : Extracted, there are 1 streams, with 1 basic streams, 0 audio streams, 0 subtitle streams
+15:25:58.859 INFO : Vid *AES_128 Kbps | 378 Segments | ~01h18m42s
+15:25:58.864 INFO : Selected streams:
+15:25:58.865 INFO : Vid *AES_128 Kbps | 378 Segments | ~01h18m42s
+15:25:58.869 WARN : Writing meta json
+15:25:58.872 INFO : Save Name: Classplus_Video
+15:25:58.876 WARN : MuxAfterDone is detected, binary merging is automatically enabled
+15:25:58.881 INFO : Start downloading...Vid Kbps
+15:25:59.646 EXTRA: Program Exit...

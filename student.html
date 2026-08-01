@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student PDF Study Material Portal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="student_style.css">
+    <script src="student_script.js" defer></script>
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">📚</div>
+                <div>
+                    <h1>Student PDF Portal</h1>
+                    <p class="tagline">Direct PDF Study Notes & Course Materials</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Passcode Login Card (Shown when not logged in) -->
+            <section class="card login-card" id="login-section">
+                <div class="login-header">
+                    <div class="key-icon">🔑</div>
+                    <h2>Enter Student Access Code</h2>
+                    <p>Enter the access passcode provided by your instructor to unlock your course PDFs.</p>
+                </div>
+                <div class="login-form">
+                    <div class="input-group">
+                        <input type="text" id="student-passcode" placeholder="e.g. SCI-2026 or BATCH-101" autocomplete="off">
+                        <button id="btn-unlock" class="btn btn-primary">
+                            <span class="btn-text">Unlock PDFs</span>
+                            <span class="spinner hidden"></span>
+                        </button>
+                    </div>
+                    <div class="error-msg hidden" id="login-error"></div>
+                </div>
+            </section>
+
+            <!-- PDF Dashboard Section (Shown after valid passcode entry) -->
+            <section class="card dashboard-card hidden" id="dashboard-section">
+                <div class="dashboard-header">
+                    <div>
+                        <h2 id="course-title-display">📖 Course PDF Materials</h2>
+                        <span class="access-badge" id="access-code-badge">Code: --</span>
+                    </div>
+                    <button id="btn-change-code" class="btn btn-secondary action-btn">🔑 Change Access Code</button>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="filter-bar">
+                    <input type="text" id="pdf-search-input" placeholder="🔎 Search PDF by title or folder name...">
+                    <select id="pdf-folder-filter">
+                        <option value="ALL">All Folders</option>
+                    </select>
+                </div>
+
+                <!-- PDF List Table -->
+                <div class="pdf-table-container">
+                    <table class="pdf-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th>PDF Document Title</th>
+                                <th>Folder Location</th>
+                                <th style="width: 160px; text-align: center;">Direct Download</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-pdf-tbody">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Student PDF Study Material Portal &copy; 2026 | Fast Direct Downloads</p>
+        </footer>
+    </div>
+</body>
+</html>

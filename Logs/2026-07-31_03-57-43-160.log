@@ -1,0 +1,20 @@
+﻿LOG 2026/07/31
+Save Path: C:\Users\HP\Downloads\hls live classplus\Logs
+Task Start: 2026/07/31 03:57:43
+Task CommandLine: "C:\Users\HP\Downloads\hls live classplus\N_m3u8DL-RE.exe" "C:\Users\HP\Downloads\hls live classplus\_temp_manifest.m3u8" --save-name "Kinematics 1D L3" --del-after-done -M format=mp4 --auto-select --log-level INFO
+
+03:57:43.180 INFO : N_m3u8DL-RE (Beta version) 20260628
+03:57:43.182 EXTRA: ffmpeg => C:\Users\HP\Downloads\hls live classplus\ffmpeg.exe
+03:57:43.182 INFO : Loading URL: C:\Users\HP\Downloads\hls live classplus\_temp_manifest.m3u8
+03:57:43.215 INFO : Content Matched: HTTP Live Streaming
+03:57:43.216 INFO : Parsing streams...
+03:57:43.293 WARN : Writing meta json
+03:57:43.316 INFO : Extracted, there are 1 streams, with 1 basic streams, 0 audio streams, 0 subtitle streams
+03:57:43.321 INFO : Vid *AES_128 Kbps | 406 Segments | ~01h24m28s
+03:57:43.332 INFO : Selected streams:
+03:57:43.342 INFO : Vid *AES_128 Kbps | 406 Segments | ~01h24m28s
+03:57:43.346 WARN : Writing meta json
+03:57:43.365 INFO : Save Name: Kinematics 1D L3
+03:57:43.366 WARN : MuxAfterDone is detected, binary merging is automatically enabled
+03:57:43.382 INFO : Start downloading...Vid Kbps
+03:57:44.204 EXTRA: Program Exit...

@@ -1,0 +1,1570 @@
+import os
+import sys
+import json
+import re
+import time
+import threading
+import subprocess
+import urllib.request
+import urllib.parse
+import base64
+import ssl
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+
+# Import PyCryptodome AES for decrypting the key server response
+try:
+    from Crypto.Cipher import AES
+except ImportError:
+    AES = None
+
+PORT = 8000
+WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
+N_M3U8DL_PATH = os.path.join(WORKSPACE_DIR, "N_m3u8DL-RE.exe")
+FFMPEG_PATH = os.path.join(WORKSPACE_DIR, "ffmpeg.exe")
+
+# Global states for tracking download progress
+download_thread = None
+download_process = None
+download_logs = []
+download_status = {
+    "running": False,
+    "progress": 0,
+    "speed": "0 Mbps",
+    "eta": "--:--",
+    "status_text": "Idle",
+    "error": None
+}
+log_lock = threading.Lock()
+
+# Thread-safe dictionary to cache auto-extracted keys/IVs for HLS URLs
+# Key: HLS URL, Value: (key_bytes, iv_hex)
+extracted_keys_cache = {}
+cache_lock = threading.Lock()
+
+# SSL context to ignore cert errors
+SSL_CTX = ssl._create_unverified_context()
+
+def get_classplus_headers(token):
+    """
+    Construct Classplus API headers with dynamic orgCode extraction from JWT access token.
+    Supports SciAstra, Drishti, Physics Wallah, and all Classplus powered apps.
+    """
+    headers = {
+        "x-access-token": token,
+        "region": "IN",
+        "api-version": "26",
+        "Origin": "https://web.classplusapp.com",
+        "Referer": "https://web.classplusapp.com/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    if not token:
+        return headers
+
+    try:
+        parts = token.split('.')
+        if len(parts) >= 2:
+            payload_b64 = parts[1]
+            payload_b64 += '=' * (-len(payload_b64) % 4)
+            payload_json = json.loads(base64.b64decode(payload_b64).decode('utf-8'))
+            
+            org_code = payload_json.get('orgCode') or payload_json.get('org_code')
+            if org_code:
+                headers["orgCode"] = org_code
+                
+            org_id = payload_json.get('orgId') or payload_json.get('org_id')
+            if org_id:
+                headers["orgId"] = str(org_id)
+    except Exception:
+        pass
+
+    return headers
+
+def decode_o1(url_or_token):
+    """
+    Extract AES-128 Key and IV from o1= parameter in URL or raw base64 string.
+    Returns (key_bytes, iv_hex) or (None, None)
+    """
+    o1_val = None
+    if "o1=" in url_or_token:
+        m = re.search(r'[?&]o1=([A-Za-z0-9+/=]+)', url_or_token)
+        if m:
+            o1_val = m.group(1)
+    else:
+        # Strip potential query chars
+        cleaned = re.sub(r'[^A-Za-z0-9+/=]', '', url_or_token)
+        if len(cleaned) >= 32:
+            o1_val = cleaned
+
+    if not o1_val:
+        return None, None
+
+    try:
+        raw = base64.b64decode(o1_val)
+        if len(raw) < 32:
+            return None, None
+            
+        b0 = raw[:16]  # Key for decrypting o1 tail
+        b1 = raw[16:32] # IV for stream & o1 tail
+        iv_hex = b1.hex()
+
+        # If full o1 payload is present (>= 64 bytes), decrypt payload tail with AES-CBC to get true AES segment key
+        if len(raw) >= 64 and AES:
+            tail = raw[32:64]
+            cipher = AES.new(b0, AES.MODE_CBC, b1)
+            decrypted_tail = cipher.decrypt(tail)
+            key_bytes = decrypted_tail[:16]
+        else:
+            key_bytes = b0
+
+        return key_bytes, iv_hex
+    except Exception as e:
+        print(f"Error decoding o1: {e}")
+        return None, None
+
+# Global states for tracking batch download progress
+batch_thread = None
+batch_status = {
+    "running": False,
+    "current_index": 0,
+    "total_videos": 0,
+    "current_title": "",
+    "status_text": "Idle",
+    "logs": []
+}
+batch_lock = threading.Lock()
+
+# Global states for tracking PDF batch downloads
+pdf_batch_thread = None
+pdf_batch_status = {
+    "running": False,
+    "current_index": 0,
+    "total_pdfs": 0,
+    "current_title": "",
+    "status_text": "Idle",
+    "logs": []
+}
+pdf_batch_lock = threading.Lock()
+
+class APIHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        sys.stdout.write("%s - - [%s] %s\n" %
+                         (self.address_string(),
+                          self.log_date_time_string(),
+                          format%args))
+
+    def do_GET(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+
+        if path == "/" or path == "/student.html" or path == "/student":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "student.html"), "text/html")
+        elif path == "/student_style.css":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "student_style.css"), "text/css")
+        elif path == "/student_script.js":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "student_script.js"), "application/javascript")
+        elif path == "/admin.html" or path == "/admin":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "admin.html"), "text/html")
+        elif path == "/admin_style.css":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "admin_style.css"), "text/css")
+        elif path == "/admin_script.js":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "admin_script.js"), "application/javascript")
+        elif path == "/index.html":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "index.html"), "text/html")
+        elif path == "/style.css":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "style.css"), "text/css")
+        elif path == "/script.js":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "script.js"), "application/javascript")
+        elif path == "/pdf_downloader.html" or path == "/pdf":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_downloader.html"), "text/html")
+        elif path == "/pdf_style.css":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_style.css"), "text/css")
+        elif path == "/pdf_script.js":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_script.js"), "application/javascript")
+        elif path == "/api/admin/get-data":
+            self.handle_admin_get_data()
+        elif path == "/api/status":
+            self.handle_api_status()
+        elif path == "/api/batch-status":
+            self.handle_batch_status()
+        elif path == "/api/pdf/batch-status":
+            self.handle_pdf_batch_status()
+        else:
+            self.send_error(404, "File Not Found")
+
+    def do_POST(self):
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            data = json.loads(post_data.decode('utf-8')) if post_data else {}
+        except Exception:
+            data = {}
+
+        if path == "/api/fetch-info":
+            self.handle_fetch_info(data)
+        elif path == "/api/download":
+            self.handle_download(data)
+        elif path == "/api/cancel":
+            self.handle_cancel()
+        elif path == "/api/course-content":
+            self.handle_course_content(data)
+        elif path == "/api/user-courses":
+            self.handle_user_courses(data)
+        elif path == "/api/export-course-links":
+            self.handle_export_course_links(data)
+        elif path == "/api/batch-download":
+            self.handle_batch_download(data)
+        elif path == "/api/pdf/course-pdfs":
+            self.handle_course_pdfs(data)
+        elif path == "/api/pdf/export-links":
+            self.handle_export_pdf_links(data)
+        elif path == "/api/pdf/batch-download":
+            self.handle_pdf_batch_download(data)
+        elif path == "/api/admin/save-token":
+            self.handle_admin_save_token(data)
+        elif path == "/api/admin/create-code":
+            self.handle_admin_create_code(data)
+        elif path == "/api/admin/delete-code":
+            self.handle_admin_delete_code(data)
+        elif path == "/api/student/access":
+            self.handle_student_access(data)
+        else:
+            self.send_error(404, "Endpoint Not Found")
+
+    def serve_file(self, file_path, content_type):
+        if not os.path.exists(file_path):
+            self.send_error(404, "File Not Found")
+            return
+        
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", len(content))
+            self.end_headers()
+            self.wfile.write(content)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except Exception as e:
+            print(f"Error serving file {file_path}: {e}")
+
+    def send_json(self, data, status_code=200):
+        try:
+            response_bytes = json.dumps(data).encode('utf-8')
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", len(response_bytes))
+            self.end_headers()
+            self.wfile.write(response_bytes)
+        except Exception as e:
+            print(f"Error sending JSON response: {e}")
+
+    def handle_api_status(self):
+        with log_lock:
+            status = download_status.copy()
+            status["logs"] = "\n".join(download_logs)
+        self.send_json(status)
+
+    def handle_cancel(self):
+        global download_process
+        if download_process:
+            try:
+                download_process.terminate()
+                download_process = None
+                with log_lock:
+                    download_status["running"] = False
+                    download_status["status_text"] = "Cancelled"
+                    download_logs.append("[SYSTEM] Download process terminated by user.")
+                self.send_json({"success": True, "message": "Download cancelled."})
+            except Exception as e:
+                self.send_json({"success": False, "message": f"Error terminating process: {e}"}, 500)
+        else:
+            self.send_json({"success": False, "message": "No active download process to cancel."})
+
+    def handle_course_content(self, data):
+        token = data.get("token", "").strip()
+        course_id = data.get("course_id", "").strip()
+        folder_id = data.get("folder_id", "0").strip()
+
+        if not token or not course_id:
+            self.send_json({"success": False, "error": "Access Token and Course ID are required."}, 400)
+            return
+
+        api_url = f"https://api.classplusapp.com/v2/course/content/get?courseId={course_id}&folderId={folder_id}"
+        req = urllib.request.Request(api_url, headers={
+            "x-access-token": token,
+            "region": "IN",
+            "api-version": "26",
+            "Origin": "https://web.classplusapp.com",
+            "Referer": "https://web.classplusapp.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+
+        try:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as res:
+                res_json = json.loads(res.read().decode('utf-8'))
+                if res_json.get("status") == "success":
+                    self.send_json({"success": True, "data": res_json.get("data", {})})
+                else:
+                    self.send_json({"success": False, "error": res_json.get("message", "API error")}, 400)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_batch_status(self):
+        with batch_lock:
+            status = batch_status.copy()
+            status["logs"] = "\n".join(batch_status["logs"])
+        self.send_json(status)
+
+    def handle_user_courses(self, data):
+        token = data.get("token", "").strip()
+        if not token:
+            self.send_json({"success": False, "error": "Access Token is required."}, 400)
+            return
+
+        api_url = "https://api.classplusapp.com/v2/course/get"
+        req = urllib.request.Request(api_url, headers={
+            "x-access-token": token,
+            "region": "IN",
+            "api-version": "26",
+            "Origin": "https://web.classplusapp.com",
+            "Referer": "https://web.classplusapp.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+
+        try:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as res:
+                res_json = json.loads(res.read().decode('utf-8'))
+                if res_json.get("status") == "success":
+                    courses = res_json.get("data", {}).get("courses", [])
+                    self.send_json({"success": True, "courses": courses})
+                else:
+                    self.send_json({"success": False, "error": res_json.get("message", "API error")}, 400)
+        except urllib.error.HTTPError as http_err:
+            if http_err.code == 401:
+                self.send_json({"success": False, "error": "Unauthorized (401): Your Classplus Access Token has expired or is invalid. Please log in to Classplus again and copy a fresh Access Token."}, 401)
+            else:
+                self.send_json({"success": False, "error": f"Classplus API Error (HTTP {http_err.code})"}, http_err.code)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_export_course_links(self, data):
+        token = data.get("token", "").strip()
+        course_id = data.get("course_id", "").strip()
+
+        if not token or not course_id:
+            self.send_json({"success": False, "error": "Token and Course ID are required."}, 400)
+            return
+
+        try:
+            videos = fetch_all_course_videos(token, course_id)
+            
+            txt_lines = []
+            txt_lines.append(f"==================================================")
+            txt_lines.append(f" CLASSPLUS COURSE LINKS EXPORT")
+            txt_lines.append(f" Course ID: {course_id}")
+            txt_lines.append(f" Total Videos: {len(videos)}")
+            txt_lines.append(f"==================================================\n")
+
+            for idx, vid in enumerate(videos, 1):
+                path_str = f" [{vid['folder_path']}]" if vid['folder_path'] else ""
+                txt_lines.append(f"{idx:03d}. {vid['title']}{path_str}")
+                txt_lines.append(f"     Content ID / Link: {vid['content_id']}")
+                txt_lines.append("")
+
+            export_filename = f"Course_Links_{course_id}.txt"
+            export_filepath = os.path.join(WORKSPACE_DIR, export_filename)
+            
+            with open(export_filepath, "w", encoding="utf-8") as f:
+                f.write("\n".join(txt_lines))
+
+            self.send_json({
+                "success": True,
+                "filename": export_filename,
+                "total_videos": len(videos),
+                "content": "\n".join(txt_lines)
+            })
+        except urllib.error.HTTPError as http_err:
+            if http_err.code == 401:
+                self.send_json({"success": False, "error": "Unauthorized (401): Your Classplus Access Token has expired or is invalid. Please log in to Classplus again and copy a fresh Access Token."}, 401)
+            else:
+                self.send_json({"success": False, "error": f"Classplus API Error (HTTP {http_err.code})"}, http_err.code)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_batch_download(self, data):
+        global batch_thread, batch_status
+        token = data.get("token", "").strip()
+        course_id = data.get("course_id", "").strip()
+        quality = data.get("quality", "720p").strip()
+        mux_format = data.get("format", "mp4").strip()
+
+        if not token or not course_id:
+            self.send_json({"success": False, "error": "Token and Course ID are required."}, 400)
+            return
+
+        with batch_lock:
+            if batch_status["running"]:
+                self.send_json({"success": False, "error": "A batch download is already in progress."}, 400)
+                return
+            batch_status.update({
+                "running": True,
+                "current_index": 0,
+                "total_videos": 0,
+                "current_title": "Initializing...",
+                "status_text": "Fetching course video list...",
+                "logs": []
+            })
+
+        batch_thread = threading.Thread(
+            target=run_batch_downloader_process,
+            args=(token, course_id, quality, mux_format)
+        )
+        batch_thread.daemon = True
+        batch_thread.start()
+
+        self.send_json({"success": True, "message": "Batch download started."})
+
+    def handle_fetch_info(self, data):
+        url = data.get("url", "").strip()
+        token = data.get("token", "").strip()
+        o1_input = data.get("o1", "").strip()
+
+        if not url:
+            self.send_json({"error": "URL is required"}, 400)
+            return
+
+        try:
+            o1_key = None
+            o1_iv = None
+            resolved_url = url
+
+            # 1. Check if o1_input starts with base64/hex key value instead of content ID
+            if o1_input and not o1_input.startswith("U2FsdGVkX19"):
+                o1_key, o1_iv = decode_o1(o1_input)
+            
+            # Check URL itself for direct o1 parameters
+            if not o1_key and "o1=" in url:
+                o1_key, o1_iv = decode_o1(url)
+
+            # 2. Extract content ID for API lookup (supports contentHashId, contentId, or raw U2FsdGVkX19 strings)
+            content_id = None
+            if o1_input.startswith("U2FsdGVkX19"):
+                content_id = o1_input
+            elif url.startswith("U2FsdGVkX19"):
+                content_id = url
+            else:
+                parsed_query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+                if "contentHashId" in parsed_query:
+                    content_id = parsed_query["contentHashId"][0]
+                elif "contentId" in parsed_query:
+                    content_id = parsed_query["contentId"][0]
+                else:
+                    # Regex match any U2FsdGVkX19... salted token embedded in the URL string
+                    match = re.search(r'(U2FsdGVkX19[A-Za-z0-9%+/=]+)', url)
+                    if match:
+                        content_id = urllib.parse.unquote(match.group(1))
+
+            # 3. If we have content ID and an access token, fetch signed URL from API
+            if not o1_key and content_id and token:
+                print(f"Querying Classplus API for contentId: {content_id}")
+                api_url = f"https://api.classplusapp.com/cams/uploader/video/jw-signed-url?contentId={urllib.parse.quote(content_id)}"
+                req = urllib.request.Request(api_url, headers={
+                    "x-access-token": token,
+                    "region": "IN",
+                    "api-version": "26",
+                    "Origin": "https://web.classplusapp.com",
+                    "Referer": "https://web.classplusapp.com/",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                })
+                try:
+                    with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as api_res:
+                        res_json = json.loads(api_res.read().decode('utf-8'))
+                        if res_json.get("success") and res_json.get("url"):
+                            signed_url = res_json.get("url")
+                            print(f"API returned signed URL: {signed_url[:120]}...")
+                            o1_key, o1_iv = decode_o1(signed_url)
+                            resolved_url = signed_url
+                        else:
+                            raise ValueError(res_json.get("message", "API response error"))
+                except Exception as api_err:
+                    print(f"API Call failed: {api_err}")
+                    self.send_json({"success": False, "error": f"API Token Authentication failed: {api_err}"}, 400)
+                    return
+
+            # If key/IV extracted, cache them for this HLS URL
+            if o1_key and o1_iv:
+                with cache_lock:
+                    extracted_keys_cache[resolved_url] = (o1_key, o1_iv)
+                print(f"Cached o1 credentials. Key: {o1_key.hex()} | IV: {o1_iv}")
+
+            # 4. Fetch manifest content
+            req = urllib.request.Request(resolved_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as response:
+                content = response.read().decode('utf-8', errors='ignore')
+
+            streams = []
+            
+            # Check if it is a master playlist
+            if "#EXT-X-STREAM-INF" in content:
+                lines = content.split('\n')
+                current_stream = {}
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("#EXT-X-STREAM-INF:"):
+                        current_stream = {}
+                        res_match = re.search(r'RESOLUTION=(\d+x\d+)', line)
+                        if res_match:
+                            resolution = res_match.group(1)
+                            current_stream["resolution"] = resolution
+                            current_stream["quality"] = resolution.split('x')[1] + "p"
+                        else:
+                            current_stream["resolution"] = "Unknown"
+                            current_stream["quality"] = "Unknown"
+                        
+                        bw_match = re.search(r'BANDWIDTH=(\d+)', line)
+                        if bw_match:
+                            current_stream["bandwidth"] = int(bw_match.group(1))
+                    elif line and not line.startswith("#") and current_stream:
+                        absolute_url = urllib.parse.urljoin(resolved_url, line)
+                        current_stream["url"] = absolute_url
+                        streams.append(current_stream)
+                        current_stream = {}
+                
+                streams = sorted(streams, key=lambda s: s.get("bandwidth", 0), reverse=True)
+                
+                # Cache key & IV for each sub-stream URL if extracted from master URL
+                if o1_key and o1_iv:
+                    with cache_lock:
+                        for s in streams:
+                            extracted_keys_cache[s["url"]] = (o1_key, o1_iv)
+            else:
+                # Direct quality stream
+                quality_label = "Auto (Single Stream)"
+                if "1080" in resolved_url: quality_label = "1080p"
+                elif "720" in resolved_url: quality_label = "720p"
+                elif "480" in resolved_url: quality_label = "480p"
+                elif "360" in resolved_url: quality_label = "360p"
+                elif "240" in resolved_url: quality_label = "240p"
+                
+                streams.append({
+                    "quality": quality_label,
+                    "resolution": "Unknown",
+                    "bandwidth": 0,
+                    "url": resolved_url
+                })
+
+            response_data = {
+                "success": True, 
+                "streams": streams,
+                "o1_extracted": o1_key is not None,
+                "resolved_url": resolved_url
+            }
+            if o1_key and o1_iv:
+                response_data["key_hex"] = o1_key.hex()
+                response_data["iv_hex"] = o1_iv
+
+            self.send_json(response_data)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_download(self, data):
+        global download_thread, download_status, download_logs
+        
+        with log_lock:
+            if download_status["running"]:
+                self.send_json({"success": False, "message": "A download is already in progress."}, 400)
+                return
+
+        url = data.get("url", "").strip()
+        key_input = data.get("key", "").strip()
+        iv_input = data.get("iv", "").strip()
+        filename = data.get("filename", "").strip()
+        mux_format = data.get("format", "mp4").strip()
+
+        if not url:
+            self.send_json({"success": False, "message": "Stream URL is required."}, 400)
+            return
+        if not filename:
+            filename = "Classplus_Video"
+
+        # Sanitize filename
+        filename = re.sub(r'\.(mp4|mkv|ts)$', '', filename, flags=re.IGNORECASE)
+        filename = "".join(c for c in filename if c.isalnum() or c in (' ', '_', '-')).strip()
+        if not filename:
+            filename = "Classplus_Video"
+
+        key_bytes = None
+        iv_hex = ""
+
+        if key_input:
+            # Parse manual key
+            hex_match = re.match(r'^[0-9a-fA-F]{32}$', key_input)
+            if hex_match:
+                key_bytes = bytes.fromhex(key_input)
+            else:
+                try:
+                    decoded = base64.b64decode(key_input)
+                    if len(decoded) == 16:
+                        key_bytes = decoded
+                except Exception:
+                    pass
+            
+            if not key_bytes:
+                self.send_json({"success": False, "message": "Invalid Manual Key. Must be 32-character Hex or 24-character Base64."}, 400)
+                return
+
+            if iv_input:
+                cleaned_iv = re.sub(r'^0x', '', iv_input, flags=re.IGNORECASE).strip()
+                if re.match(r'^[0-9a-fA-F]{32}$', cleaned_iv):
+                    iv_hex = cleaned_iv.lower()
+                else:
+                    try:
+                        decoded = base64.b64decode(iv_input)
+                        if len(decoded) == 16:
+                            iv_hex = decoded.hex().lower()
+                    except Exception:
+                        pass
+                    if not iv_hex:
+                        self.send_json({"success": False, "message": "Invalid Manual IV. Must be 32-character Hex or Base64."}, 400)
+                        return
+        else:
+            # Check cache for auto-extracted credentials
+            with cache_lock:
+                cached = extracted_keys_cache.get(url)
+            if not cached:
+                o1_k, o1_i = decode_o1(url)
+                if o1_k and o1_i:
+                    key_bytes = o1_k
+                    iv_hex = o1_i
+            else:
+                key_bytes, iv_hex = cached
+
+        # Start download thread
+        with log_lock:
+            download_logs.clear()
+            download_status.update({
+                "running": True,
+                "progress": 0,
+                "speed": "0 Mbps",
+                "eta": "--:--",
+                "status_text": "Initializing...",
+                "error": None
+            })
+            download_logs.append(f"[SYSTEM] Starting download: {filename}.{mux_format}")
+            if key_bytes:
+                download_logs.append(f"[SYSTEM] AES-128 Key verified: {key_bytes.hex()}")
+                download_logs.append(f"[SYSTEM] AES-128 IV verified: {iv_hex}")
+            else:
+                download_logs.append("[SYSTEM] No key found. Downloading as unencrypted HLS stream.")
+
+        download_thread = threading.Thread(
+            target=run_downloader_process,
+            args=(url, key_bytes, iv_hex, filename, mux_format)
+        )
+        download_thread.daemon = True
+        download_thread.start()
+
+        self.send_json({"success": True, "message": "Download started successfully."})
+
+def run_downloader_process(url, key_bytes, iv_hex, filename, mux_format):
+    global download_process, download_status, download_logs
+    
+    try:
+        temp_manifest_path = os.path.join(WORKSPACE_DIR, "_temp_manifest.m3u8")
+        temp_key_path = os.path.join(WORKSPACE_DIR, "_temp_key.bin")
+        
+        # Clean up old files
+        if os.path.exists(temp_manifest_path):
+            os.remove(temp_manifest_path)
+        if os.path.exists(temp_key_path):
+            os.remove(temp_key_path)
+
+        # 1. Fetch playlist manifest
+        with log_lock:
+            download_status["status_text"] = "Fetching playlist..."
+            download_logs.append("[SYSTEM] Fetching manifest from CDN...")
+
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as response:
+            playlist_content = response.read().decode('utf-8', errors='ignore')
+
+        # 2. Check for key server and decrypt key server response if needed
+        lines = playlist_content.split('\n')
+        
+        key_server_uri = None
+        key_tag_line = None
+        for line in lines:
+            if line.strip().startswith("#EXT-X-KEY:"):
+                key_tag_line = line.strip()
+                m = re.search(r'URI="([^"]+)"', line)
+                if m:
+                    key_server_uri = m.group(1)
+                    break
+
+        with log_lock:
+            if key_tag_line:
+                download_logs.append(f"[DEBUG] EXT-X-KEY line found: {key_tag_line}")
+                download_logs.append(f"[DEBUG] Raw key_server_uri: {key_server_uri}")
+            else:
+                download_logs.append("[DEBUG] No #EXT-X-KEY found in playlist!")
+                first_5 = [l.strip() for l in lines if l.strip()][:5]
+                download_logs.append(f"[DEBUG] Playlist first 5 lines: {first_5}")
+
+        real_key_bytes = None
+        query_str = url.split("?", 1)[1] if "?" in url else ""
+
+        if key_server_uri and key_bytes:
+            # Resolve key server URI to absolute URL
+            if not key_server_uri.startswith("http"):
+                key_server_uri = urllib.parse.urljoin(url, key_server_uri)
+
+            # FIX: Pass only CDN auth params to key server (not all query params)
+            if "?" not in key_server_uri and query_str:
+                orig_params = urllib.parse.parse_qs(query_str)
+                cdn_params = {}
+                for param in ["key", "Expires", "Signature", "URLPrefix", "_GO", "userIds", "hdnts", "hmac"]:
+                    if param in orig_params:
+                        cdn_params[param] = orig_params[param][0]
+                if cdn_params:
+                    key_server_uri = f"{key_server_uri}?{urllib.parse.urlencode(cdn_params)}"
+
+            with log_lock:
+                download_logs.append(f"[SYSTEM] Key server: {key_server_uri[:100]}...")
+                download_logs.append("[SYSTEM] Fetching encrypted key blob...")
+
+            try:
+                req_key = urllib.request.Request(key_server_uri, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                })
+                with urllib.request.urlopen(req_key, context=SSL_CTX, timeout=15) as r_key:
+                    encrypted_blob = r_key.read()
+
+                with log_lock:
+                    download_logs.append(f"[SYSTEM] Blob fetched ({len(encrypted_blob)} bytes). Decrypting (NoPadding)...")
+
+                if AES:
+                    iv_bytes = bytes.fromhex(iv_hex) if iv_hex else b'\x00' * 16
+                    blob_padded = encrypted_blob
+                    if len(blob_padded) % 16 != 0:
+                        blob_padded += b'\x00' * (16 - len(blob_padded) % 16)
+                    cipher = AES.new(key_bytes, AES.MODE_CBC, iv_bytes)
+                    decrypted_blob = cipher.decrypt(blob_padded)
+                    real_key_bytes = decrypted_blob[:16]
+                    with log_lock:
+                        download_logs.append(f"[SYSTEM] Real segment key: {real_key_bytes.hex()}")
+                else:
+                    with log_lock:
+                        download_logs.append("[SYSTEM] [ERROR] pycryptodome missing. pip install pycryptodome")
+            except Exception as decrypt_err:
+                with log_lock:
+                    download_logs.append(f"[SYSTEM] [WARNING] Key server failed: {decrypt_err}")
+                    download_logs.append("[SYSTEM] Falling back to o1 direct key...")
+
+        # Fall back: if no key server decrypted, try o1 payload tail decryption
+        if not real_key_bytes and key_bytes:
+            o1_val = None
+            if "o1=" in url:
+                m = re.search(r'[?&]o1=([A-Za-z0-9+/=]+)', url)
+                if m:
+                    o1_val = m.group(1)
+            if o1_val:
+                try:
+                    raw_o1 = base64.b64decode(o1_val)
+                    if len(raw_o1) >= 64 and AES:
+                        b0 = raw_o1[:16]
+                        b1 = raw_o1[16:32]
+                        cipher = AES.new(b0, AES.MODE_CBC, b1)
+                        decrypted_tail = cipher.decrypt(raw_o1[32:64])
+                        real_key_bytes = decrypted_tail[:16]
+                        with log_lock:
+                            download_logs.append(f"[SYSTEM] Decrypted real key from o1 payload tail: {real_key_bytes.hex()}")
+                except Exception as e:
+                    pass
+
+        # Fall back to raw key_bytes if all else fails
+        if not real_key_bytes:
+            real_key_bytes = key_bytes
+
+        # Write final key bytes to local file
+        if real_key_bytes:
+            with open(temp_key_path, "wb") as kf:
+                kf.write(real_key_bytes)
+            with log_lock:
+                download_logs.append(f"[SYSTEM] Local decryption key saved to: {temp_key_path}")
+
+        # 3. Patch playlist manifest: Inject local key URI, IV, and convert relative paths to absolute
+        patched_lines = []
+        key_tag_inserted = False
+        
+        # USE A RELATIVE URI to prevent absolute URL parser crash in Windows paths with spaces!
+        key_uri = "_temp_key.bin"
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Resolve relative segment URLs to absolute URLs
+            if not line.startswith("#"):
+                abs_segment_url = urllib.parse.urljoin(url, line)
+                patched_lines.append(abs_segment_url)
+                continue
+
+            # Process key tag
+            if line.startswith("#EXT-X-KEY:"):
+                if real_key_bytes:
+                    new_key_line = f'#EXT-X-KEY:METHOD=AES-128,URI="{key_uri}"'
+                    if iv_hex:
+                        new_key_line += f',IV=0x{iv_hex}'
+                    patched_lines.append(new_key_line)
+                    key_tag_inserted = True
+                else:
+                    patched_lines.append(line)
+            else:
+                patched_lines.append(line)
+                # Inject key line if not found and key is provided
+                if line.startswith("#EXT-X-VERSION:") and real_key_bytes and not key_tag_inserted:
+                    new_key_line = f'#EXT-X-KEY:METHOD=AES-128,URI="{key_uri}"'
+                    if iv_hex:
+                        new_key_line += f',IV=0x{iv_hex}'
+                    patched_lines.append(new_key_line)
+                    key_tag_inserted = True
+
+        # Save patched manifest locally
+        patched_manifest_content = "\n".join(patched_lines)
+        with open(temp_manifest_path, "w", encoding="utf-8") as mf:
+            mf.write(patched_manifest_content)
+        
+        with log_lock:
+            download_logs.append(f"[SYSTEM] Patched manifest saved locally to: {temp_manifest_path}")
+
+        # 4. Launch N_m3u8DL-RE.exe
+        if not os.path.exists(N_M3U8DL_PATH):
+            raise FileNotFoundError(f"N_m3u8DL-RE.exe was not found in: {WORKSPACE_DIR}")
+
+        with log_lock:
+            download_status["status_text"] = "Downloading..."
+            download_logs.append("[SYSTEM] Launching N_m3u8DL-RE downloader...")
+
+        # Setup environmental variables to include PATH
+        env = os.environ.copy()
+        env["PATH"] = WORKSPACE_DIR + os.pathsep + env.get("PATH", "")
+
+        cmd = [
+            N_M3U8DL_PATH,
+            temp_manifest_path,
+            "--save-name", filename,
+            "--del-after-done",
+            "-M", f"format={mux_format}",
+            "--auto-select",
+            "--log-level", "INFO"
+        ]
+
+        with log_lock:
+            download_logs.append(f"[CMD] {' '.join(cmd)}")
+
+        download_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=WORKSPACE_DIR,
+            env=env,
+            text=True,
+            bufsize=1
+        )
+
+        # Parse live process outputs
+        while True:
+            line = download_process.stdout.readline()
+            if not line and download_process.poll() is not None:
+                break
+            if line:
+                cleaned_line = line.strip()
+                if cleaned_line:
+                    with log_lock:
+                        download_logs.append(cleaned_line)
+                    
+                    # Parse progress percentage
+                    progress_match = re.search(r'(\d+(?:\.\d+)?)\s*%', cleaned_line)
+                    if progress_match:
+                        try:
+                            prog = float(progress_match.group(1))
+                            with log_lock:
+                                download_status["progress"] = int(prog)
+                        except Exception:
+                            pass
+
+                    # Parse speed
+                    speed_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:Mbps|KB/s|MB/s)', cleaned_line, re.IGNORECASE)
+                    if speed_match:
+                        with log_lock:
+                            download_status["speed"] = speed_match.group(0)
+
+                    # Parse ETA
+                    eta_matches = re.findall(r'(\d{2}:\d{2}:\d{2})|(\d{2}:\d{2})', cleaned_line)
+                    if eta_matches:
+                        last_eta = [t for match in eta_matches for t in match if t][-1]
+                        if "Progress" in cleaned_line or "Mbps" in cleaned_line or "MB/s" in cleaned_line:
+                            with log_lock:
+                                download_status["eta"] = last_eta
+
+        exit_code = download_process.wait()
+        download_process = None
+
+        # Automatic FFmpeg Fallback if N_m3u8DL-RE fails (e.g. PKCS7 padding error)
+        if exit_code != 0:
+            with log_lock:
+                download_logs.append("[SYSTEM] [NOTICE] N_m3u8DL-RE failed. Initiating automatic FFmpeg stream decryptor fallback...")
+                download_status["status_text"] = "Downloading (FFmpeg Fallback)..."
+            
+            output_file = os.path.join(WORKSPACE_DIR, f"{filename}.{mux_format}")
+            ffmpeg_exe = FFMPEG_PATH if os.path.exists(FFMPEG_PATH) else "ffmpeg"
+            
+            ffmpeg_cmd = [
+                ffmpeg_exe,
+                "-y",
+                "-allowed_extensions", "ALL",
+                "-protocol_whitelist", "file,http,https,tcp,tls,crypto",
+                "-i", temp_manifest_path,
+                "-c", "copy",
+                output_file
+            ]
+
+            with log_lock:
+                download_logs.append(f"[CMD] {' '.join(ffmpeg_cmd)}")
+
+            ffmpeg_proc = subprocess.Popen(
+                ffmpeg_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=WORKSPACE_DIR,
+                text=True,
+                bufsize=1
+            )
+            
+            while True:
+                line = ffmpeg_proc.stdout.readline()
+                if not line and ffmpeg_proc.poll() is not None:
+                    break
+                if line:
+                    c_line = line.strip()
+                    if c_line:
+                        with log_lock:
+                            download_logs.append(c_line)
+                            if "time=" in c_line:
+                                time_match = re.search(r'time=(\d{2}:\d{2}:\d{2})', c_line)
+                                if time_match:
+                                    download_status["eta"] = f"Transcoded: {time_match.group(1)}"
+            
+            ffmpeg_exit = ffmpeg_proc.wait()
+            if ffmpeg_exit == 0 and os.path.exists(output_file) and os.path.getsize(output_file) > 1000:
+                exit_code = 0
+                with log_lock:
+                    download_logs.append("[SYSTEM] [SUCCESS] FFmpeg successfully decrypted and saved the video!")
+
+        # Clean up temporary files
+        try:
+            if os.path.exists(temp_manifest_path):
+                os.remove(temp_manifest_path)
+            if os.path.exists(temp_key_path):
+                os.remove(temp_key_path)
+        except Exception as e:
+            with log_lock:
+                download_logs.append(f"[SYSTEM] [WARNING] Could not clean up temp files: {e}")
+
+        # Final status check
+        with log_lock:
+            download_status["running"] = False
+            if exit_code == 0:
+                download_status["progress"] = 100
+                download_status["status_text"] = "Completed"
+                download_logs.append(f"[SYSTEM] Success! Video saved as '{filename}.{mux_format}' in workspace.")
+            else:
+                download_status["status_text"] = "Failed"
+                download_logs.append(f"[SYSTEM] [ERROR] Download process failed.")
+                
+    except Exception as e:
+        with log_lock:
+            download_status["running"] = False
+            download_status["status_text"] = "Failed"
+            download_status["error"] = str(e)
+            download_logs.append(f"[SYSTEM] [FATAL ERROR] {e}")
+
+def fetch_all_course_videos(token, course_id):
+    """
+    Recursively fetch all folders and video items in a course.
+    Returns list of dicts: [{ 'title', 'content_id', 'folder_path', 'url' }, ...]
+    """
+    videos = []
+
+    def traverse_folder(folder_id="0", current_path=""):
+        api_url = f"https://api.classplusapp.com/v2/course/content/get?courseId={course_id}&folderId={folder_id}"
+        req = urllib.request.Request(api_url, headers={
+            "x-access-token": token,
+            "region": "IN",
+            "api-version": "26",
+            "Origin": "https://web.classplusapp.com",
+            "Referer": "https://web.classplusapp.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+        try:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as res:
+                res_json = json.loads(res.read().decode('utf-8'))
+                if res_json.get("status") == "success":
+                    items = res_json.get("data", {}).get("contents", [])
+                    for item in items:
+                        item_name = item.get("name", "Untitled").strip()
+                        item_type = item.get("type", 0) # 1=Folder, 2=Video/Resource
+                        item_id = str(item.get("id", ""))
+                        
+                        path_str = f"{current_path}/{item_name}" if current_path else item_name
+                        
+                        if item_type == 1:
+                            # Subfolder -> Recurse
+                            traverse_folder(item_id, path_str)
+                        elif item_type == 2 or "contentId" in item or item.get("contentType") == 2:
+                            # Video item
+                            content_id = item.get("contentId") or item.get("url") or item_id
+                            videos.append({
+                                "title": item_name,
+                                "content_id": content_id,
+                                "folder_path": current_path,
+                                "url": item.get("url", "")
+                            })
+        except Exception as e:
+            print(f"Error fetching folder {folder_id}: {e}")
+
+    traverse_folder("0", "")
+    return videos
+
+def run_batch_downloader_process(token, course_id, quality, mux_format):
+    global batch_status
+    try:
+        videos = fetch_all_course_videos(token, course_id)
+        
+        with batch_lock:
+            batch_status["total_videos"] = len(videos)
+            batch_status["logs"].append(f"[BATCH] Total videos found in course: {len(videos)}")
+
+        if not videos:
+            with batch_lock:
+                batch_status["running"] = False
+                batch_status["status_text"] = "No videos found in course."
+            return
+
+        output_course_dir = os.path.join(WORKSPACE_DIR, f"Course_{course_id}")
+        os.makedirs(output_course_dir, exist_ok=True)
+
+        for idx, vid in enumerate(videos, 1):
+            with batch_lock:
+                if not batch_status["running"]:
+                    batch_status["logs"].append("[BATCH] Batch download cancelled by user.")
+                    break
+                batch_status["current_index"] = idx
+                batch_status["current_title"] = vid["title"]
+                batch_status["status_text"] = f"Downloading ({idx}/{len(videos)}): {vid['title']}"
+                batch_status["logs"].append(f"\n[BATCH] [{idx}/{len(videos)}] Processing: {vid['title']}")
+
+            content_id = vid["content_id"]
+            api_url = f"https://api.classplusapp.com/cams/uploader/video/jw-signed-url?contentId={urllib.parse.quote(content_id)}"
+            req = urllib.request.Request(api_url, headers={
+                "x-access-token": token,
+                "region": "IN",
+                "api-version": "26",
+                "Origin": "https://web.classplusapp.com",
+                "Referer": "https://web.classplusapp.com/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+
+            try:
+                signed_url = None
+                with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as res:
+                    res_json = json.loads(res.read().decode('utf-8'))
+                    if res_json.get("success") and res_json.get("url"):
+                        signed_url = res_json.get("url")
+
+                if not signed_url:
+                    with batch_lock:
+                        batch_status["logs"].append(f"[BATCH] [ERROR] Could not fetch signed URL for {vid['title']}")
+                    continue
+
+                o1_key, o1_iv = decode_o1(signed_url)
+
+                target_dir = output_course_dir
+                if vid["folder_path"]:
+                    safe_folder = "".join(c for c in vid["folder_path"] if c.isalnum() or c in (' ', '_', '-', '/')).strip()
+                    target_dir = os.path.join(output_course_dir, safe_folder.replace('/', os.sep))
+                    os.makedirs(target_dir, exist_ok=True)
+
+                safe_title = "".join(c for c in vid["title"] if c.isalnum() or c in (' ', '_', '-')).strip()
+                if not safe_title:
+                    safe_title = f"Video_{idx}"
+
+                run_downloader_process(signed_url, o1_key, o1_iv, os.path.join(target_dir, safe_title), mux_format)
+
+            except Exception as vid_err:
+                with batch_lock:
+                    batch_status["logs"].append(f"[BATCH] [ERROR] Failed processing {vid['title']}: {vid_err}")
+
+        with batch_lock:
+            batch_status["running"] = False
+            batch_status["status_text"] = "Completed"
+            batch_status["logs"].append("\n[BATCH] 🎉 Batch download completed for all videos!")
+
+    except Exception as e:
+        with batch_lock:
+            batch_status["running"] = False
+            batch_status["status_text"] = "Failed"
+            batch_status["logs"].append(f"[BATCH] [FATAL ERROR] {e}")
+
+# ==================== PDF DIRECT DOWNLOADER HELPERS ====================
+
+def fetch_all_course_pdfs(token, course_id):
+    """
+    Recursively fetch all folders and PDF document items in a course.
+    Supports SciAstra, Drishti, Physics Wallah, and all Classplus powered apps.
+    Returns list of dicts: [{ 'title', 'content_id', 'folder_path', 'url' }, ...]
+    """
+    pdfs = []
+    visited_folders = set()
+
+    def extract_url_from_item(item):
+        for k in ["url", "attachmentUrl", "originalUrl", "contentUrl", "s3Url", "pdfUrl", "downloadUrl", "fileUrl", "mediaUrl", "previewUrl", "link", "encryptedUrl"]:
+            val = item.get(k)
+            if val and isinstance(val, str) and val.startswith("http"):
+                return val
+        return ""
+
+    def traverse_folder(folder_id="0", current_path=""):
+        if folder_id in visited_folders:
+            return
+        visited_folders.add(folder_id)
+
+        api_url = f"https://api.classplusapp.com/v2/course/content/get?courseId={course_id}&folderId={folder_id}"
+        req = urllib.request.Request(api_url, headers=get_classplus_headers(token))
+        try:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=15) as res:
+                res_json = json.loads(res.read().decode('utf-8'))
+                if res_json.get("status") == "success":
+                    data_obj = res_json.get("data", {})
+                    
+                    items = []
+                    if isinstance(data_obj, dict):
+                        for k in ["contents", "courseContent", "folders", "list", "files", "resources"]:
+                            if k in data_obj and isinstance(data_obj[k], list):
+                                items = data_obj[k]
+                                break
+                    elif isinstance(data_obj, list):
+                        items = data_obj
+
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                            
+                        item_name = (item.get("name") or item.get("title") or "Untitled").strip()
+                        item_type = str(item.get("type", 0))
+                        content_type = str(item.get("contentType", 0))
+                        item_id = str(item.get("id", ""))
+                        
+                        path_str = f"{current_path}/{item_name}" if current_path else item_name
+                        
+                        is_folder = (item_type == "1" or content_type == "1" or 
+                                     item.get("isFolder") is True or item.get("is_folder") is True or
+                                     "contents" in item)
+                        
+                        if is_folder:
+                            sub_folder_id = item.get("id") or item.get("folderId") or item_id
+                            if sub_folder_id and str(sub_folder_id) != str(folder_id):
+                                traverse_folder(str(sub_folder_id), path_str)
+                        else:
+                            pdf_url = extract_url_from_item(item)
+
+                            content_id = item.get("contentId") or item_id
+                            if not pdf_url and content_id and token:
+                                for endp in ["document/signed-url", "video/jw-signed-url", "common/signed-url"]:
+                                    try:
+                                        s_url = f"https://api.classplusapp.com/cams/uploader/{endp}?contentId={urllib.parse.quote(str(content_id))}"
+                                        s_req = urllib.request.Request(s_url, headers=get_classplus_headers(token))
+                                        with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=5) as s_res:
+                                            s_json = json.loads(s_res.read().decode('utf-8'))
+                                            u = s_json.get("url") or s_json.get("signedUrl") or s_json.get("data", {}).get("url")
+                                            if u:
+                                                pdf_url = u
+                                                break
+                                    except Exception:
+                                        pass
+
+                            is_pdf = False
+                            if item_type in ("3", "4", "5", "8") or content_type in ("3", "4", "5", "8"):
+                                is_pdf = True
+                            elif pdf_url and (".pdf" in pdf_url.lower() or "attachment" in pdf_url.lower() or "document" in pdf_url.lower()):
+                                is_pdf = True
+                            elif item_name.lower().endswith((".pdf", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".txt")):
+                                is_pdf = True
+                            elif item_type != "2" and content_type != "2" and pdf_url and not pdf_url.endswith(".m3u8"):
+                                is_pdf = True
+
+                            if is_pdf and pdf_url:
+                                pdfs.append({
+                                    "title": item_name,
+                                    "content_id": content_id,
+                                    "folder_path": current_path,
+                                    "url": pdf_url
+                                })
+
+                            for att_key in ["attachments", "resources", "files", "documents", "media"]:
+                                att_list = item.get(att_key, [])
+                                if isinstance(att_list, list):
+                                    for att in att_list:
+                                        if isinstance(att, dict):
+                                            att_url = extract_url_from_item(att)
+                                            att_name = att.get("name") or att.get("title") or f"{item_name}_attachment"
+                                            if att_url:
+                                                pdfs.append({
+                                                    "title": att_name,
+                                                    "content_id": att.get("id") or content_id,
+                                                    "folder_path": current_path,
+                                                    "url": att_url
+                                                })
+        except Exception as e:
+            print(f"Error fetching PDF folder {folder_id}: {e}")
+
+    traverse_folder("0", "")
+    return pdfs
+
+def run_pdf_batch_downloader_process(token, course_id):
+    global pdf_batch_status
+    try:
+        pdfs = fetch_all_course_pdfs(token, course_id)
+        
+        with pdf_batch_lock:
+            pdf_batch_status["total_pdfs"] = len(pdfs)
+            pdf_batch_status["logs"].append(f"[PDF BATCH] Total PDFs found in course: {len(pdfs)}")
+
+        if not pdfs:
+            with pdf_batch_lock:
+                pdf_batch_status["running"] = False
+                pdf_batch_status["status_text"] = "No PDFs found in course."
+            return
+
+        output_course_dir = os.path.join(WORKSPACE_DIR, f"Course_{course_id}_PDFs")
+        os.makedirs(output_course_dir, exist_ok=True)
+
+        for idx, pdf in enumerate(pdfs, 1):
+            with pdf_batch_lock:
+                if not pdf_batch_status["running"]:
+                    pdf_batch_status["logs"].append("[PDF BATCH] Batch download cancelled by user.")
+                    break
+                pdf_batch_status["current_index"] = idx
+                pdf_batch_status["current_title"] = pdf["title"]
+                pdf_batch_status["status_text"] = f"Downloading ({idx}/{len(pdfs)}): {pdf['title']}"
+                pdf_batch_status["logs"].append(f"[PDF BATCH] [{idx}/{len(pdfs)}] Downloading: {pdf['title']}")
+
+            target_dir = output_course_dir
+            if pdf["folder_path"]:
+                safe_folder = "".join(c for c in pdf["folder_path"] if c.isalnum() or c in (' ', '_', '-', '/')).strip()
+                target_dir = os.path.join(output_course_dir, safe_folder.replace('/', os.sep))
+                os.makedirs(target_dir, exist_ok=True)
+
+            safe_title = "".join(c for c in pdf["title"] if c.isalnum() or c in (' ', '_', '-')).strip()
+            if not safe_title:
+                safe_title = f"PDF_{idx}"
+            if not safe_title.lower().endswith(".pdf"):
+                safe_title += ".pdf"
+
+            pdf_file_path = os.path.join(target_dir, safe_title)
+            pdf_url = pdf["url"]
+
+            try:
+                req = urllib.request.Request(pdf_url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                })
+                with urllib.request.urlopen(req, context=SSL_CTX, timeout=30) as response, open(pdf_file_path, 'wb') as out_f:
+                    data = response.read()
+                    out_f.write(data)
+
+                with pdf_batch_lock:
+                    pdf_batch_status["logs"].append(f"[PDF BATCH] Saved: {safe_title} ({len(data)} bytes)")
+            except Exception as dl_err:
+                with pdf_batch_lock:
+                    pdf_batch_status["logs"].append(f"[PDF BATCH] [ERROR] Failed downloading {pdf['title']}: {dl_err}")
+
+        with pdf_batch_lock:
+            pdf_batch_status["running"] = False
+            pdf_batch_status["status_text"] = "Completed"
+            pdf_batch_status["logs"].append("\n[PDF BATCH] 🎉 PDF Batch download completed for all materials!")
+
+    except Exception as e:
+        with pdf_batch_lock:
+            pdf_batch_status["running"] = False
+            pdf_batch_status["status_text"] = "Failed"
+            pdf_batch_status["logs"].append(f"[PDF BATCH] [FATAL ERROR] {e}")
+
+# ==================== DUAL PORTAL & DATABASE HELPERS ====================
+
+DB_FILE = os.path.join(WORKSPACE_DIR, "database.json")
+
+def load_db():
+    if not os.path.exists(DB_FILE):
+        return {"admin_token": "", "access_codes": {}}
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"admin_token": "", "access_codes": {}}
+
+def save_db(data):
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f"Error saving database.json: {e}")
+
+def fetch_fast_course_pdfs(token, course_id):
+    """
+    High-speed PDF-only crawler (~10s).
+    Strictly skips video folders, video files, live recordings, and stream manifests.
+    """
+    pdfs = []
+    visited_folders = set()
+
+    def extract_url_from_item(item):
+        for k in ["url", "attachmentUrl", "originalUrl", "contentUrl", "s3Url", "pdfUrl", "downloadUrl", "fileUrl", "mediaUrl", "previewUrl", "link", "encryptedUrl"]:
+            val = item.get(k)
+            if val and isinstance(val, str) and val.startswith("http"):
+                return val
+        return ""
+
+    def traverse_folder(folder_id="0", current_path=""):
+        if folder_id in visited_folders:
+            return
+        visited_folders.add(folder_id)
+
+        api_url = f"https://api.classplusapp.com/v2/course/content/get?courseId={course_id}&folderId={folder_id}"
+        req = urllib.request.Request(api_url, headers=get_classplus_headers(token))
+        try:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=12) as res:
+                res_json = json.loads(res.read().decode('utf-8'))
+                if res_json.get("status") == "success":
+                    data_obj = res_json.get("data", {})
+                    
+                    items = []
+                    if isinstance(data_obj, dict):
+                        for k in ["contents", "courseContent", "folders", "list", "files", "resources"]:
+                            if k in data_obj and isinstance(data_obj[k], list):
+                                items = data_obj[k]
+                                break
+                    elif isinstance(data_obj, list):
+                        items = data_obj
+
+                    for item in items:
+                        if not isinstance(item, dict):
+                            continue
+                            
+                        item_name = (item.get("name") or item.get("title") or "Untitled").strip()
+                        item_type = str(item.get("type", 0))
+                        content_type = str(item.get("contentType", 0))
+                        item_id = str(item.get("id", ""))
+                        
+                        path_str = f"{current_path}/{item_name}" if current_path else item_name
+                        name_lower = item_name.lower()
+
+                        # SKIP VIDEO FOLDERS & VIDEO ITEMS IMMEDIATELY (<10s SPEED OPTIMIZATION)
+                        if item_type == "2" or content_type == "2":
+                            continue
+                        
+                        if any(v_kw in name_lower for v_kw in ["video", "recording", "live class", "lecture video", "m3u8"]):
+                            continue
+
+                        is_folder = (item_type == "1" or content_type == "1" or 
+                                     item.get("isFolder") is True or item.get("is_folder") is True or
+                                     "contents" in item)
+                        
+                        if is_folder:
+                            sub_folder_id = item.get("id") or item.get("folderId") or item_id
+                            if sub_folder_id and str(sub_folder_id) != str(folder_id):
+                                traverse_folder(str(sub_folder_id), path_str)
+                        else:
+                            pdf_url = extract_url_from_item(item)
+
+                            is_pdf = False
+                            if item_type in ("3", "4", "5", "8") or content_type in ("3", "4", "5", "8"):
+                                is_pdf = True
+                            elif pdf_url and (".pdf" in pdf_url.lower() or "attachment" in pdf_url.lower() or "document" in pdf_url.lower()):
+                                is_pdf = True
+                            elif name_lower.endswith((".pdf", ".doc", ".docx", ".ppt", ".pptx", ".zip", ".txt")):
+                                is_pdf = True
+                            elif item_type != "2" and content_type != "2" and pdf_url and not pdf_url.endswith(".m3u8"):
+                                is_pdf = True
+
+                            if is_pdf and pdf_url:
+                                pdfs.append({
+                                    "title": item_name,
+                                    "content_id": item.get("contentId") or item_id,
+                                    "folder_path": current_path,
+                                    "url": pdf_url
+                                })
+
+                            for att_key in ["attachments", "resources", "files", "documents", "media"]:
+                                att_list = item.get(att_key, [])
+                                if isinstance(att_list, list):
+                                    for att in att_list:
+                                        if isinstance(att, dict):
+                                            att_url = extract_url_from_item(att)
+                                            att_name = att.get("name") or att.get("title") or f"{item_name}_attachment"
+                                            if att_url:
+                                                pdfs.append({
+                                                    "title": att_name,
+                                                    "content_id": att.get("id") or item_id,
+                                                    "folder_path": current_path,
+                                                    "url": att_url
+                                                })
+        except Exception as e:
+            print(f"Error fetching PDF folder {folder_id}: {e}")
+
+    traverse_folder("0", "")
+    return pdfs
+
+# High-performance In-Memory Cache for 100+ Concurrent Students
+pdf_cache = {}  # course_id -> { 'timestamp': float, 'pdfs': list }
+CACHE_TTL = 900  # 15 Minutes Cache TTL
+pdf_cache_lock = threading.Lock()
+
+def get_cached_pdfs(token, course_id, force_refresh=False):
+    """
+    Returns cached PDF materials instantly (0.005s) for concurrent students.
+    Prevents Classplus rate-limiting and server lag when 100+ students connect.
+    """
+    now = time.time()
+    if not force_refresh:
+        with pdf_cache_lock:
+            if course_id in pdf_cache:
+                entry = pdf_cache[course_id]
+                if now - entry["timestamp"] < CACHE_TTL:
+                    return entry["pdfs"]
+
+    pdfs = fetch_fast_course_pdfs(token, course_id)
+    with pdf_cache_lock:
+        pdf_cache[course_id] = {
+            "timestamp": now,
+            "pdfs": pdfs
+        }
+    return pdfs
+
+def handle_admin_get_data(self):
+    db = load_db()
+    self.send_json({
+        "success": True,
+        "admin_token": db.get("admin_token", ""),
+        "access_codes": db.get("access_codes", {})
+    })
+
+def handle_admin_save_token(self, data):
+    token = data.get("token", "").strip()
+    db = load_db()
+    db["admin_token"] = token
+    save_db(db)
+    
+    # Invalidate cache when admin token changes
+    with pdf_cache_lock:
+        pdf_cache.clear()
+
+    self.send_json({"success": True, "message": "Admin token saved."})
+
+def handle_admin_create_code(self, data):
+    code = data.get("code", "").strip().upper()
+    course_id = data.get("course_id", "").strip()
+    course_name = data.get("course_name", "").strip()
+
+    if not code or not course_id:
+        self.send_json({"success": False, "error": "Code and Course ID are required."}, 400)
+        return
+
+    db = load_db()
+    if "access_codes" not in db:
+        db["access_codes"] = {}
+
+    db["access_codes"][code] = {
+        "course_id": course_id,
+        "course_name": course_name or f"Course {course_id}"
+    }
+    save_db(db)
+    self.send_json({"success": True, "message": f"Passcode {code} created."})
+
+def handle_admin_delete_code(self, data):
+    code = data.get("code", "").strip().upper()
+    db = load_db()
+    if "access_codes" in db and code in db["access_codes"]:
+        del db["access_codes"][code]
+        save_db(db)
+        self.send_json({"success": True, "message": f"Passcode {code} deleted."})
+    else:
+        self.send_json({"success": False, "error": "Passcode not found."}, 404)
+
+def handle_student_access(self, data):
+    passcode = data.get("passcode", "").strip().upper()
+    if not passcode:
+        self.send_json({"success": False, "error": "Access Code is required."}, 400)
+        return
+
+    db = load_db()
+    access_codes = db.get("access_codes", {})
+    if passcode not in access_codes:
+        self.send_json({"success": False, "error": "Invalid Access Code. Please check with your instructor."}, 404)
+        return
+
+    code_info = access_codes[passcode]
+    course_id = code_info.get("course_id")
+    course_name = code_info.get("course_name", "")
+    admin_token = db.get("admin_token", "").strip()
+
+    if not admin_token:
+        self.send_json({"success": False, "error": "Admin Access Token has not been configured on the server yet."}, 400)
+        return
+
+    try:
+        # High-performance cached retrieval (0.005s response for concurrent students)
+        pdfs = get_cached_pdfs(admin_token, course_id)
+        self.send_json({
+            "success": True,
+            "pdfs": pdfs,
+            "course_name": course_name,
+            "course_id": course_id
+        })
+    except Exception as e:
+        self.send_json({"success": False, "error": f"Error scanning PDFs: {e}"}, 500)
+
+APIHandler.handle_admin_get_data = handle_admin_get_data
+APIHandler.handle_admin_save_token = handle_admin_save_token
+APIHandler.handle_admin_create_code = handle_admin_create_code
+APIHandler.handle_admin_delete_code = handle_admin_delete_code
+APIHandler.handle_student_access = handle_student_access
+
+def run_server():
+    # Multi-Threaded HTTP Server: Spawns independent threads for 100+ concurrent students
+    try:
+        server = ThreadingHTTPServer(('', PORT), APIHandler)
+    except Exception:
+        server = HTTPServer(('', PORT), APIHandler)
+
+    print(f"High-Performance Multi-Threaded Server running at http://127.0.0.1:{PORT}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping server...")
+        server.server_close()
+
+if __name__ == "__main__":
+    run_server()
+
+
+

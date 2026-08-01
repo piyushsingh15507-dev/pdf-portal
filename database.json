@@ -1,0 +1,17 @@
+{
+  "admin_token": "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpZCI6MTI5OTI2NTgwLCJvcmdJZCI6Mjk3NzUyLCJvcmdDb2RlIjoidm9hYWYiLCJvcmdOYW1lIjoiU2NpQXN0cmEiLCJuYW1lIjoiU2NpQXN0cmEiLCJlbWFpbCI6ImhpbWFuc2h1OTQxMTIwQGdtYWlsLmNvbSIsIm1vYmlsZSI6IjkxODUyOTcyODEyNCIsInR5cGUiOjMsImlzRGl5Ijp0cnVlLCJpc0ludGVybmF0aW9uYWwiOjAsImRlZmF1bHRMYW5ndWFnZSI6IkVOIiwiY291bnRyeUNvZGUiOiJJTiIsInRpbWV6b25lIjoiR01UKzU6MzAiLCJjb3VudHJ5SVNPIjoiOTEiLCJpc0RpeVN1YmFkbWluIjoxLCJpYXQiOjE3ODUwOTM2MTAsImV4cCI6MTc4NTY5ODQxMH0.W8vGOenFWNZh6JV32i0VJcMID1BTGI754Ln66BAidvgm5Jhm-PvDxhbPga0xZ_qH",
+  "access_codes": {
+    "SCIENCE": {
+      "course_id": "551648",
+      "course_name": "Course 551648"
+    },
+    "IAT1234": {
+      "course_id": "840821",
+      "course_name": "Course 840821"
+    },
+    "1234": {
+      "course_id": "662223",
+      "course_name": "Course 662223"
+    }
+  }
+}

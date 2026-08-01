@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classplus Admin Control Panel</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin_style.css">
+    <script src="admin_script.js" defer></script>
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Admin Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">⚙️</div>
+                <div>
+                    <h1>Classplus Admin Control Panel</h1>
+                    <p class="tagline">Manage Tokens & Generate Student Access Passcodes</p>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="/student.html" target="_blank" class="nav-btn">🎓 Open Student Portal</a>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Side: Config & Passcode Creator -->
+            <section class="card control-card">
+                <!-- 1. Admin Token Configuration -->
+                <div class="panel-section">
+                    <h3 class="section-title">🔑 Global Classplus Access Token</h3>
+                    <div class="form-group">
+                        <label for="admin-token">Classplus Access Token (x-access-token)</label>
+                        <input type="text" id="admin-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
+                        <span class="help-text">This token is stored securely on the server and used to serve PDFs to students.</span>
+                    </div>
+                    <button id="btn-save-token" class="btn btn-primary" style="margin-top: 10px;">
+                        💾 Save Admin Token
+                    </button>
+                </div>
+
+                <!-- 2. Student Passcode Generator -->
+                <div class="panel-section">
+                    <h3 class="section-title">✨ Generate Student Access Passcode</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="passcode-code">Custom Student Passcode</label>
+                            <input type="text" id="passcode-code" placeholder="e.g. SCI-2026 or BATCH-101" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="passcode-course-id">Target Course ID</label>
+                            <input type="text" id="passcode-course-id" placeholder="e.g. 297752" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="passcode-course-name">Course Name (Display Label)</label>
+                            <input type="text" id="passcode-course-name" placeholder="e.g. SciAstra Physics Batch 2026" autocomplete="off">
+                        </div>
+
+                        <button id="btn-create-code" class="btn btn-secondary export-btn">
+                            ➕ Create Access Passcode
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side: Active Passcodes List & Real-time Integration -->
+            <section class="card data-card">
+                <div class="results-header">
+                    <h2 class="section-title">📋 Active Student Access Passcodes</h2>
+                    <span class="stats-badge" id="passcode-count-badge">0 Active Codes</span>
+                </div>
+
+                <div class="passcode-table-container">
+                    <table class="passcode-table">
+                        <thead>
+                            <tr>
+                                <th>Student Passcode</th>
+                                <th>Course ID</th>
+                                <th>Course Name</th>
+                                <th style="width: 120px; text-align: center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passcodes-tbody">
+                            <tr class="empty-row">
+                                <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
+                                    🔑 No student access passcodes created yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Classplus Admin Management Portal &copy; 2026 | Real-time Integration</p>
+        </footer>
+    </div>
+</body>
+</html>
