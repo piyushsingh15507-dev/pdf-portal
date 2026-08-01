@@ -231,6 +231,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_delete_code(data)
         elif path == "/api/admin/block-ip":
             self.handle_admin_block_ip(data)
+        elif path == "/api/admin/unblock-ip":
+            self.handle_admin_unblock_ip(data)
         elif path == "/api/student/access":
             self.handle_student_access(data)
         else:
@@ -1535,6 +1537,19 @@ def handle_admin_block_ip(self, data):
 
     self.send_json({"success": True, "message": f"IP {ip} blocked."})
 
+def handle_admin_unblock_ip(self, data):
+    ip = data.get("ip", "").strip()
+    if not ip:
+        self.send_json({"success": False, "error": "IP address is required."}, 400)
+        return
+
+    db = load_db()
+    if "blocked_ips" in db and ip in db["blocked_ips"]:
+        db["blocked_ips"].remove(ip)
+        save_db(db)
+
+    self.send_json({"success": True, "message": f"IP {ip} unblocked."})
+
 def handle_student_access(self, data):
     passcode = data.get("passcode", "").strip().upper()
     student_name = data.get("name", "Anonymous Student").strip()
@@ -1606,6 +1621,7 @@ APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
 APIHandler.handle_admin_delete_code = handle_admin_delete_code
 APIHandler.handle_admin_block_ip = handle_admin_block_ip
+APIHandler.handle_admin_unblock_ip = handle_admin_unblock_ip
 APIHandler.handle_student_access = handle_student_access
 
 def run_server():

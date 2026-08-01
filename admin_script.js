@@ -189,9 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><small style="color:#9ca3af;">${escapeHtml(s.time)}</small></td>
                     <td>${statusLabel}</td>
                     <td style="text-align: center;">
-                        <button class="btn btn-danger btn-block-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" ${isBlocked ? 'disabled' : ''}>
-                            ${isBlocked ? 'Blocked' : '🚫 Block Student'}
-                        </button>
+                        ${isBlocked ? 
+                            `<button class="btn btn-secondary btn-unblock-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981;">
+                                🟢 Unblock Student
+                            </button>` : 
+                            `<button class="btn btn-danger btn-block-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}">
+                                🚫 Block Student
+                            </button>`
+                        }
                     </td>
                 </tr>`;
         });
@@ -212,7 +217,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await res.json();
                     if (data.success) {
-                        alert(`Student '${studentName}' (${ipToBlock}) has been BLOCKED!`);
+                        loadAdminData();
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                } catch (err) {
+                    alert(`Error: ${err.message}`);
+                }
+            });
+        });
+
+        document.querySelectorAll('.btn-unblock-ip').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const ipToUnblock = e.target.getAttribute('data-ip');
+                const studentName = e.target.getAttribute('data-name');
+
+                if (!confirm(`Unblock student '${studentName}' (${ipToUnblock})?`)) return;
+
+                try {
+                    const res = await fetch('/api/admin/unblock-ip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip: ipToUnblock })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(`Student '${studentName}' (${ipToUnblock}) UNBLOCKED successfully!`);
                         loadAdminData();
                     } else {
                         alert(`Error: ${data.error}`);
