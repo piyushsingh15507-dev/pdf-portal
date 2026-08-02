@@ -53,22 +53,62 @@
                     <h3 class="section-title">✨ Generate Student Access Passcode</h3>
                     <div class="form-grid">
                         <div class="form-group">
+                            <label for="passcode-category">Exam Category</label>
+                            <select id="passcode-category" style="width: 100%; padding: 12px; background: rgba(5, 8, 20, 0.7); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #f3f4f6; font-family: inherit;">
+                                <option value="IAT & NEST">🧪 IAT & NEST (Classplus Course)</option>
+                                <option value="CUET">📚 CUET (Custom PDFs & Direct Links)</option>
+                                <option value="JEE">⚛️ JEE (Custom PDFs & Direct Links)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
                             <label for="passcode-code">Custom Student Passcode</label>
-                            <input type="text" id="passcode-code" placeholder="e.g. SCI-2026 or BATCH-101" autocomplete="off">
+                            <input type="text" id="passcode-code" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group" id="course-id-group">
+                            <label for="passcode-course-id">Target Classplus Course ID (For IAT & NEST)</label>
+                            <input type="text" id="passcode-course-id" placeholder="e.g. 297752 (Leave blank for CUET/JEE)" autocomplete="off">
                         </div>
 
                         <div class="form-group">
-                            <label for="passcode-course-id">Target Course ID</label>
-                            <input type="text" id="passcode-course-id" placeholder="e.g. 297752" autocomplete="off">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="passcode-course-name">Course Name (Display Label)</label>
-                            <input type="text" id="passcode-course-name" placeholder="e.g. SciAstra Physics Batch 2026" autocomplete="off">
+                            <label for="passcode-course-name">Course / Batch Name (Display Label)</label>
+                            <input type="text" id="passcode-course-name" placeholder="e.g. SciAstra Physics 2026 / CUET Mock Series" autocomplete="off">
                         </div>
 
                         <button id="btn-create-code" class="btn btn-secondary export-btn">
                             ➕ Create Access Passcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Custom PDF Link Uploader (For CUET & JEE) -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">📁 Add Custom PDF Link (CUET & JEE)</h3>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add direct PDF URLs (GitHub, Google Drive direct links, Cloudflare) for CUET/JEE passcodes.</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="custom-pdf-code">Target Passcode</label>
+                            <input type="text" id="custom-pdf-code" placeholder="e.g. CUET-101 or JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-title">PDF Document Title</label>
+                            <input type="text" id="custom-pdf-title" placeholder="e.g. CUET Chemistry Chapter 1 Notes" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-folder">Folder Name (Optional)</label>
+                            <input type="text" id="custom-pdf-folder" placeholder="e.g. Chemistry Notes / Mock Tests" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-url">Direct PDF URL</label>
+                            <input type="text" id="custom-pdf-url" placeholder="https://raw.githubusercontent.com/... or https://drive.google.com/..." autocomplete="off">
+                        </div>
+
+                        <button id="btn-add-custom-pdf" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">
+                            ➕ Add PDF to Passcode
                         </button>
                     </div>
                 </div>
@@ -85,9 +125,10 @@
                     <table class="passcode-table">
                         <thead>
                             <tr>
-                                <th>Student Passcode</th>
+                                <th>Passcode & Category</th>
                                 <th>Course ID</th>
                                 <th>Course Name</th>
+                                <th>PDF Source</th>
                                 <th style="width: 120px; text-align: center;">Actions</th>
                             </tr>
                         </thead>

@@ -180,6 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 courseTitleDisplay.innerText = data.course_name ? `📖 ${data.course_name}` : '📖 Course PDF Materials';
                 accessCodeBadge.innerText = `Student: ${name} | Code: ${passcode}`;
 
+                const categoryBadge = document.getElementById('category-badge');
+                if (categoryBadge) {
+                    categoryBadge.innerText = `Category: ${data.category || 'IAT & NEST'}`;
+                }
+
                 renderPdfTable(currentPdfs);
                 populateFolderFilter(currentPdfs);
 

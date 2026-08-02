@@ -33,10 +33,17 @@
         <main class="main-content">
             <!-- Passcode Login Card (Shown when not logged in) -->
             <section class="card login-card" id="login-section">
+                <!-- Exam Category Badges -->
+                <div class="category-tabs" style="display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">🧪 IAT & NEST</span>
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">📚 CUET</span>
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">⚛️ JEE</span>
+                </div>
+
                 <div class="login-header">
                     <div class="key-icon">🔑</div>
-                    <h2>Enter Student Access Code</h2>
-                    <p>Enter the access passcode provided by your instructor to unlock your course PDFs.</p>
+                    <h2>Enter Student Access Passcode</h2>
+                    <p>Enter your assigned exam passcode to unlock your course PDFs.</p>
                 </div>
                 <div class="login-form">
                     <div class="form-group" style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
@@ -45,7 +52,7 @@
                         
                         <label for="student-passcode" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500; margin-top: 5px;">Access Passcode</label>
                         <div class="input-group">
-                            <input type="text" id="student-passcode" placeholder="e.g. SCI-2026 or BATCH-101" autocomplete="off">
+                            <input type="text" id="student-passcode" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
                             <button id="btn-unlock" class="btn btn-primary">
                                 <span class="btn-text">Unlock PDFs</span>
                                 <span class="spinner hidden"></span>
@@ -61,7 +68,12 @@
                 <div class="dashboard-header">
                     <div>
                         <h2 id="course-title-display">📖 Course PDF Materials</h2>
-                        <span class="access-badge" id="access-code-badge">Code: --</span>
+                        <div style="display: flex; gap: 8px; margin-top: 6px; align-items: center;">
+                            <span class="access-badge" id="access-code-badge">Code: --</span>
+                            <span id="category-badge" style="background: rgba(139, 92, 246, 0.2); color: #c084fc; font-weight: 600; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; border: 1px solid rgba(139, 92, 246, 0.4);">
+                                📚 Category: --
+                            </span>
+                        </div>
                     </div>
                     <button id="btn-change-code" class="btn btn-secondary action-btn">🔑 Change Access Code</button>
                 </div>

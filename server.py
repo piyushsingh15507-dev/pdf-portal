@@ -229,6 +229,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_create_code(data)
         elif path == "/api/admin/delete-code":
             self.handle_admin_delete_code(data)
+        elif path == "/api/admin/add-custom-pdf":
+            self.handle_admin_add_custom_pdf(data)
+        elif path == "/api/admin/delete-custom-pdf":
+            self.handle_admin_delete_custom_pdf(data)
         elif path == "/api/admin/block-ip":
             self.handle_admin_block_ip(data)
         elif path == "/api/admin/unblock-ip":
@@ -1542,18 +1546,31 @@ def handle_admin_create_code(self, data):
     code = data.get("code", "").strip().upper()
     course_id = data.get("course_id", "").strip()
     course_name = data.get("course_name", "").strip()
+    category = data.get("category", "IAT & NEST").strip()
+    code_type = data.get("type", "classplus").strip()
 
-    if not code or not course_id:
-        self.send_json({"success": False, "error": "Code and Course ID are required."}, 400)
+    if not code:
+        self.send_json({"success": False, "error": "Passcode is required."}, 400)
+        return
+
+    if code_type == "classplus" and not course_id:
+        self.send_json({"success": False, "error": "Course ID is required for Classplus courses."}, 400)
         return
 
     db = load_db()
     if "access_codes" not in db:
         db["access_codes"] = {}
 
+    existing_custom = []
+    if code in db["access_codes"]:
+        existing_custom = db["access_codes"][code].get("custom_pdfs", [])
+
     db["access_codes"][code] = {
         "course_id": course_id,
-        "course_name": course_name or f"Course {course_id}"
+        "course_name": course_name or f"{category} Course ({code})",
+        "category": category,
+        "type": code_type,
+        "custom_pdfs": existing_custom
     }
     save_db(db)
     self.send_json({"success": True, "message": f"Passcode {code} created."})
@@ -1567,6 +1584,60 @@ def handle_admin_delete_code(self, data):
         self.send_json({"success": True, "message": f"Passcode {code} deleted."})
     else:
         self.send_json({"success": False, "error": "Passcode not found."}, 404)
+
+def handle_admin_add_custom_pdf(self, data):
+    code = data.get("code", "").strip().upper()
+    title = data.get("title", "").strip()
+    url = data.get("url", "").strip()
+    folder_path = data.get("folder_path", "Main Directory").strip()
+
+    if not code or not title or not url:
+        self.send_json({"success": False, "error": "Passcode, Title, and PDF URL are required."}, 400)
+        return
+
+    db = load_db()
+    access_codes = db.get("access_codes", {})
+    if code not in access_codes:
+        self.send_json({"success": False, "error": f"Passcode '{code}' does not exist."}, 404)
+        return
+
+    info = access_codes[code]
+    if "custom_pdfs" not in info:
+        info["custom_pdfs"] = []
+
+    info["custom_pdfs"].append({
+        "title": title,
+        "folder_path": folder_path or "Main Directory",
+        "url": url,
+        "content_id": f"custom_{int(time.time() * 1000)}"
+    })
+    info["type"] = "custom"
+    save_db(db)
+    self.send_json({"success": True, "message": f"PDF '{title}' added to passcode {code}."})
+
+def handle_admin_delete_custom_pdf(self, data):
+    code = data.get("code", "").strip().upper()
+    try:
+        index = int(data.get("index"))
+    except (ValueError, TypeError):
+        self.send_json({"success": False, "error": "Valid PDF index is required."}, 400)
+        return
+
+    if not code:
+        self.send_json({"success": False, "error": "Passcode is required."}, 400)
+        return
+
+    db = load_db()
+    access_codes = db.get("access_codes", {})
+    if code in access_codes and "custom_pdfs" in access_codes[code]:
+        pdfs = access_codes[code]["custom_pdfs"]
+        if 0 <= index < len(pdfs):
+            removed = pdfs.pop(index)
+            save_db(db)
+            self.send_json({"success": True, "message": f"PDF '{removed.get('title')}' deleted."})
+            return
+
+    self.send_json({"success": False, "error": "PDF not found."}, 404)
 
 def handle_admin_block_ip(self, data):
     ip = data.get("ip", "").strip()
@@ -1619,13 +1690,10 @@ def handle_student_access(self, data):
         return
 
     code_info = access_codes[passcode]
-    course_id = code_info.get("course_id")
+    course_id = code_info.get("course_id", "")
     course_name = code_info.get("course_name", "")
-    admin_token = db.get("admin_token", "").strip()
-
-    if not admin_token:
-        self.send_json({"success": False, "error": "Admin Access Token has not been configured on the server yet."}, 400)
-        return
+    category = code_info.get("category", "IAT & NEST")
+    code_type = code_info.get("type", "classplus")
 
     # LOG LIVE STUDENT SESSION FOR ADMIN MONITOR
     sessions = db.get("student_sessions", [])
@@ -1655,6 +1723,25 @@ def handle_student_access(self, data):
         
     save_db(db)
 
+    # SERVE CUSTOM MANUAL PDFS (CUET / JEE) OR CLASSPLUS COURSES (IAT & NEST)
+    if code_type == "custom" or category in ["CUET", "JEE"]:
+        custom_pdfs = code_info.get("custom_pdfs", [])
+        self.send_json({
+            "success": True,
+            "pdfs": custom_pdfs,
+            "course_name": course_name,
+            "course_id": course_id,
+            "category": category,
+            "type": "custom"
+        })
+        return
+
+    # CLASSPLUS AUTOMATIC PDF SCANNING (IAT & NEST)
+    admin_token = db.get("admin_token", "").strip()
+    if not admin_token:
+        self.send_json({"success": False, "error": "Admin Access Token has not been configured on the server yet."}, 400)
+        return
+
     try:
         # High-performance cached retrieval (0.005s response for 100+ concurrent students)
         pdfs = get_cached_pdfs(admin_token, course_id)
@@ -1662,7 +1749,9 @@ def handle_student_access(self, data):
             "success": True,
             "pdfs": pdfs,
             "course_name": course_name,
-            "course_id": course_id
+            "course_id": course_id,
+            "category": category,
+            "type": "classplus"
         })
     except Exception as e:
         self.send_json({"success": False, "error": f"Error scanning PDFs: {e}"}, 500)
@@ -1731,6 +1820,8 @@ APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
 APIHandler.handle_admin_delete_code = handle_admin_delete_code
+APIHandler.handle_admin_add_custom_pdf = handle_admin_add_custom_pdf
+APIHandler.handle_admin_delete_custom_pdf = handle_admin_delete_custom_pdf
 APIHandler.handle_admin_block_ip = handle_admin_block_ip
 APIHandler.handle_admin_unblock_ip = handle_admin_unblock_ip
 APIHandler.handle_student_access = handle_student_access
