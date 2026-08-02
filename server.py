@@ -1336,6 +1336,55 @@ def run_pdf_batch_downloader_process(token, course_id):
 CLOUD_DB_URL = "https://jsonblob.com/api/jsonBlob/019fc347-48b5-766b-9c25-874512724153"
 DB_FILE = os.path.join(WORKSPACE_DIR, "database.json")
 
+_IN_MEMORY_DB = None
+_DB_LOCK = threading.Lock()
+
+def merge_db(db1, db2):
+    """Merges two database objects so no access_codes, custom_pdfs, custom_videos, or student_sessions are ever lost."""
+    merged = {
+        "admin_token": db1.get("admin_token") or db2.get("admin_token") or "",
+        "access_codes": {},
+        "student_sessions": [],
+        "blocked_ips": list(set((db1.get("blocked_ips") or []) + (db2.get("blocked_ips") or [])))
+    }
+    
+    # Merge access_codes
+    codes1 = db1.get("access_codes") or {}
+    codes2 = db2.get("access_codes") or {}
+    all_codes = set(list(codes1.keys()) + list(codes2.keys()))
+    for code in all_codes:
+        c1 = codes1.get(code, {})
+        c2 = codes2.get(code, {})
+        
+        pdfs1 = c1.get("custom_pdfs") or []
+        pdfs2 = c2.get("custom_pdfs") or []
+        merged_pdfs = pdfs1 if len(pdfs1) >= len(pdfs2) else pdfs2
+        
+        vids1 = c1.get("custom_videos") or []
+        vids2 = c2.get("custom_videos") or []
+        merged_vids = vids1 if len(vids1) >= len(vids2) else vids2
+
+        merged["access_codes"][code] = {
+            "course_id": c1.get("course_id") or c2.get("course_id") or "",
+            "course_name": c1.get("course_name") or c2.get("course_name") or "",
+            "category": c1.get("category") or c2.get("category") or "IAT & NEST",
+            "type": c1.get("type") or c2.get("type") or "classplus",
+            "access_scope": c1.get("access_scope") or c2.get("access_scope") or "all",
+            "custom_pdfs": merged_pdfs,
+            "custom_videos": merged_vids
+        }
+        
+    # Merge student_sessions
+    sess1 = db1.get("student_sessions") or []
+    sess2 = db2.get("student_sessions") or []
+    sess_dict = {}
+    for s in sess2 + sess1:
+        key = f"{s.get('ip')}_{s.get('passcode')}"
+        sess_dict[key] = s
+    merged["student_sessions"] = list(sess_dict.values())[:100]
+
+    return merged
+
 def sync_cloud_db(data):
     """Asynchronously uploads database state to 24/7 Cloud Database."""
     def _upload():
@@ -1352,38 +1401,54 @@ def sync_cloud_db(data):
     threading.Thread(target=_upload, daemon=True).start()
 
 def load_db():
-    """Loads database state from 24/7 Cloud Database, with local disk fallback."""
-    try:
-        req = urllib.request.Request(CLOUD_DB_URL, headers={'Accept': 'application/json'})
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=4) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if isinstance(data, dict):
-                try:
-                    with open(DB_FILE, "w", encoding="utf-8") as f:
-                        json.dump(data, f, indent=2)
-                except Exception:
-                    pass
-                return data
-    except Exception as e:
-        print(f"Cloud DB load fallback: {e}")
+    """Loads and merges database state from 24/7 Cloud Database and local disk."""
+    global _IN_MEMORY_DB
+    with _DB_LOCK:
+        if _IN_MEMORY_DB:
+            return _IN_MEMORY_DB
 
-    if os.path.exists(DB_FILE):
+        cloud_data = {}
         try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            req = urllib.request.Request(CLOUD_DB_URL, headers={'Accept': 'application/json'})
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=5) as resp:
+                raw = resp.read().decode('utf-8')
+                cloud_data = json.loads(raw) if raw else {}
+        except Exception as e:
+            print(f"Cloud DB load warning: {e}")
+
+        local_data = {}
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    local_data = json.load(f)
+            except Exception as e:
+                print(f"Local DB load warning: {e}")
+
+        merged = merge_db(cloud_data if isinstance(cloud_data, dict) else {}, local_data if isinstance(local_data, dict) else {})
+        _IN_MEMORY_DB = merged
+        
+        # Save merged state to disk and cloud
+        try:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(merged, f, indent=2)
         except Exception:
             pass
-    return {"admin_token": "", "access_codes": {}, "student_sessions": [], "blocked_ips": []}
+        sync_cloud_db(merged)
+
+        return _IN_MEMORY_DB
 
 def save_db(data):
-    """Saves database state locally and syncs to 24/7 Cloud Database."""
-    try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print(f"Error saving database.json: {e}")
-    
-    sync_cloud_db(data)
+    """Saves database state in memory, on disk, and syncs to 24/7 Cloud Database."""
+    global _IN_MEMORY_DB
+    with _DB_LOCK:
+        _IN_MEMORY_DB = data
+        try:
+            with open(DB_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving database.json: {e}")
+        
+        sync_cloud_db(data)
 
 def fetch_fast_course_pdfs(token, course_id):
     """

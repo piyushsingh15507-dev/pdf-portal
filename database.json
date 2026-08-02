@@ -1,11 +1,12 @@
 {
-  "admin_token": "",
+  "admin_token": "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpZCI6MTY3MjM0MDQ5LCJvcmdJZCI6Mjk3NzUyLCJ0eXBlIjoxLCJtb2JpbGUiOiI5MTk4MTYwMzczODEiLCJuYW1lIjoiRGFrc2ggS2Fwb29yIiwiZW1haWwiOiJkYWtzaDM3MzgxQGdtYWlsLmNvbSIsImlzSW50ZXJuYXRpb25hbCI6MCwiZGVmYXVsdExhbmd1YWdlIjoiRU4iLCJjb3VudHJ5Q29kZSI6IklOIiwiY291bnRyeUlTTyI6IjkxIiwidGltZXpvbmUiOiJHTVQrNTozMCIsImlzRGl5Ijp0cnVlLCJvcmdDb2RlIjoidm9hYWYiLCJpc0RpeVN1YmFkbWluIjowLCJmaW5nZXJwcmludElkIjoiODQ0ZDkxY2ViM2M2YmJlYTUzNGRkYjljNDBhYzkxNmIiLCJpYXQiOjE3ODU2OTczMTgsImV4cCI6MTc4NjMwMjExOH0.jgsCpswAMwamPYAj5eALUkMWFQ0tzlkQfk0eWYrJwxGsxMx7dXH1ZeIROa20-G3J",
   "access_codes": {
     "JEE": {
       "course_id": "",
       "course_name": "jee",
       "category": "JEE",
       "type": "custom",
+      "access_scope": "all",
       "custom_pdfs": [
         {
           "title": "chem",
@@ -13,7 +14,17 @@
           "url": "https://github.com/piyushsingh15507-dev/pdf-portal/blob/main/pdfs/Solutions.pdf",
           "content_id": "custom_1785696809863"
         }
-      ]
+      ],
+      "custom_videos": []
+    },
+    "IAT": {
+      "course_id": "840829",
+      "course_name": "raman 1.0",
+      "category": "IAT & NEST",
+      "type": "classplus",
+      "access_scope": "all",
+      "custom_pdfs": [],
+      "custom_videos": []
     }
   },
   "student_sessions": [
@@ -21,9 +32,9 @@
       "name": "meow",
       "passcode": "JEE",
       "ip": "152.58.59.188",
-      "time": "2026-08-02 18:57:05",
-      "last_ping": 1785697025.53837,
-      "clicks_count": 2,
+      "time": "2026-08-02 19:03:10",
+      "last_ping": 1785697390.1190526,
+      "clicks_count": 3,
       "clicked_pdfs": [
         "[PREVIEW] chem",
         "chem"
@@ -37,6 +48,27 @@
       "last_ping": 1785695231.0213418,
       "clicks_count": 0,
       "clicked_pdfs": []
+    },
+    {
+      "name": "piyush",
+      "passcode": "IAT",
+      "ip": "152.58.59.188",
+      "time": "2026-08-02 20:20:43",
+      "last_ping": 1785702043.2054312,
+      "clicks_count": 0,
+      "clicked_pdfs": []
+    },
+    {
+      "name": "Mike Tyson",
+      "passcode": "JEE",
+      "ip": "152.59.48.78",
+      "time": "2026-08-02 19:00:37",
+      "last_ping": 1785697237.1899357,
+      "clicks_count": 2,
+      "clicked_pdfs": [
+        "chem",
+        "[PREVIEW] chem"
+      ]
     }
   ],
   "blocked_ips": []
