@@ -168,6 +168,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_style.css"), "text/css")
         elif path == "/admin_script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_script.js"), "application/javascript")
+        elif path == "/video.html" or path == "/video":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "video.html"), "text/html")
+        elif path == "/video_script.js":
+            self.serve_file(os.path.join(WORKSPACE_DIR, "video_script.js"), "application/javascript")
         elif path == "/index.html":
             self.serve_file(os.path.join(WORKSPACE_DIR, "index.html"), "text/html")
         elif path == "/style.css":
