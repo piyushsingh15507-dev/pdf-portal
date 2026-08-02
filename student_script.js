@@ -290,6 +290,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') closePdfPreview();
     });
 
+    function normalizePdfUrl(url) {
+        if (!url) return '';
+        url = url.trim();
+        // Convert GitHub webpage blob links to direct raw file links
+        if (url.includes('github.com/') && url.includes('/blob/')) {
+            url = url.replace('github.com/', 'raw.githubusercontent.com/').replace('/blob/', '/');
+        }
+        return url;
+    }
+
     function renderPdfTable(list) {
         if (list.length === 0) {
             pdfTbody.innerHTML = `
@@ -304,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         list.forEach((pdf, index) => {
             const folderStr = pdf.folder_path ? pdf.folder_path : 'Main Directory';
-            const downloadUrl = pdf.url || '#';
+            const downloadUrl = normalizePdfUrl(pdf.url || '#');
 
             html += `
                 <tr>
@@ -336,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-preview-pdf').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const pdfTitle = btn.getAttribute('data-title');
-                const rawUrl = btn.getAttribute('data-url');
+                const rawUrl = normalizePdfUrl(btn.getAttribute('data-url'));
                 
                 // Track click in admin logs
                 const pCode = localStorage.getItem('student_passcode') || sessionStorage.getItem('student_passcode');
@@ -349,11 +359,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).catch(() => {});
                 }
 
-                // Construct preview URL (Use Google Docs Viewer for remote PDF links if needed)
-                let viewerUrl = rawUrl;
-                if (rawUrl.includes('drive.google.com') || rawUrl.includes('classplusapp.com') || rawUrl.includes('raw.githubusercontent.com') || rawUrl.endsWith('.pdf')) {
-                    viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
-                }
+                // Construct Google Docs Viewer URL for clean PDF rendering
+                const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
 
                 if (previewModalTitle) previewModalTitle.innerText = `👁️ ${pdfTitle}`;
                 if (previewIframe) previewIframe.src = viewerUrl;

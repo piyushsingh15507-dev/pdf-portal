@@ -1587,10 +1587,19 @@ def handle_admin_delete_code(self, data):
     else:
         self.send_json({"success": False, "error": "Passcode not found."}, 404)
 
+def normalize_pdf_url(url):
+    if not url:
+        return ""
+    url = url.strip()
+    # Auto-convert GitHub webpage blob links to direct raw file links
+    if "github.com/" in url and "/blob/" in url:
+        url = url.replace("github.com/", "raw.githubusercontent.com/").replace("/blob/", "/")
+    return url
+
 def handle_admin_add_custom_pdf(self, data):
     code = data.get("code", "").strip().upper()
     title = data.get("title", "").strip()
-    url = data.get("url", "").strip()
+    url = normalize_pdf_url(data.get("url", "").strip())
     folder_path = data.get("folder_path", "Main Directory").strip()
 
     if not code or not title or not url:
@@ -1752,6 +1761,10 @@ def handle_student_access(self, data):
     # SERVE CUSTOM MANUAL PDFS (CUET / JEE) OR CLASSPLUS COURSES (IAT & NEST)
     if code_type == "custom" or category in ["CUET", "JEE"]:
         custom_pdfs = code_info.get("custom_pdfs", [])
+        # Ensure all URLs are normalized to direct raw download links
+        for pdf in custom_pdfs:
+            if "url" in pdf:
+                pdf["url"] = normalize_pdf_url(pdf["url"])
         self.send_json({
             "success": True,
             "pdfs": custom_pdfs,

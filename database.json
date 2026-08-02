@@ -1,6 +1,43 @@
 {
-  "admin_token": "TEST_TOKENeyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJpZCI6MTQwNjgxMjA4LCJvcmdJZCI6Mjk3NzUyLCJ0eXBlIjoxLCJtb2JpbGUiOiI5MTk4OTk0NDI4NTUiLCJuYW1lIjoiRGhydXYgU2hhcm1hIiwiZW1haWwiOiJiaGFyZHdhamRoYW5pc2gyMTAyQGdtYWlsLmNvbSIsImlzSW50ZXJuYXRpb25hbCI6MCwiZGVmYXVsdExhbmd1YWdlIjoiRU4iLCJjb3VudHJ5Q29kZSI6IklOIiwiY291bnRyeUlTTyI6IjkxIiwidGltZXpvbmUiOiJHTVQrNTozMCIsImlzRGl5Ijp0cnVlLCJvcmdDb2RlIjoidm9hYWYiLCJpc0RpeVN1YmFkbWluIjowLCJmaW5nZXJwcmludElkIjoiYThmOTFjZTBlZDAxYjg3MDM0NWQxOTJjZjA4MDRkMmUiLCJpYXQiOjE3ODU1OTM3ODMsImV4cCI6MTc4NjE5ODU4M30.tqcXVJp8SeOOjfez3QbjpSoJujTDV8EH5MO__406ifgkc8iqB3Qe7QGddkDA7ljL",
-  "access_codes": {},
-  "student_sessions": [],
+  "admin_token": "",
+  "access_codes": {
+    "JEE": {
+      "course_id": "",
+      "course_name": "jee",
+      "category": "JEE",
+      "type": "custom",
+      "custom_pdfs": [
+        {
+          "title": "chem",
+          "folder_path": "Main Directory",
+          "url": "https://github.com/piyushsingh15507-dev/pdf-portal/blob/main/pdfs/Solutions.pdf",
+          "content_id": "custom_1785696809863"
+        }
+      ]
+    }
+  },
+  "student_sessions": [
+    {
+      "name": "meow",
+      "passcode": "JEE",
+      "ip": "152.58.59.188",
+      "time": "2026-08-02 18:57:05",
+      "last_ping": 1785697025.53837,
+      "clicks_count": 2,
+      "clicked_pdfs": [
+        "[PREVIEW] chem",
+        "chem"
+      ]
+    },
+    {
+      "name": "IAT",
+      "passcode": "IAT",
+      "ip": "152.59.162.123",
+      "time": "2026-08-02 18:27:11",
+      "last_ping": 1785695231.0213418,
+      "clicks_count": 0,
+      "clicked_pdfs": []
+    }
+  ],
   "blocked_ips": []
 }
