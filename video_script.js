@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/student/access', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode, name })
+                body: JSON.stringify({ passcode, name, portal_type: 'video' })
             });
             const data = await res.json();
 

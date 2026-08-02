@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const passcodeCategorySelect = document.getElementById('passcode-category');
+    const passcodeScopeSelect = document.getElementById('passcode-scope');
     const customPdfCodeInput = document.getElementById('custom-pdf-code');
     const customPdfTitleInput = document.getElementById('custom-pdf-title');
     const customPdfFolderInput = document.getElementById('custom-pdf-folder');
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = passcodeCodeInput.value.trim().toUpperCase();
         const courseId = passcodeCourseIdInput.value.trim();
         const category = passcodeCategorySelect.value;
+        const access_scope = passcodeScopeSelect ? passcodeScopeSelect.value : 'all';
         const type = (category === 'IAT & NEST') ? 'classplus' : 'custom';
         const courseName = passcodeCourseNameInput.value.trim() || `${category} Course (${code})`;
 
@@ -75,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/admin/create-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, course_id: courseId, course_name: courseName, category, type })
+                body: JSON.stringify({ code, course_id: courseId, course_name: courseName, category, type, access_scope })
             });
             const data = await res.json();
 
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 passcodeCourseIdInput.value = '';
                 passcodeCourseNameInput.value = '';
                 loadAdminData();
-                alert(`Passcode '${code}' for category [${category}] created successfully!`);
+                alert(`Passcode '${code}' [${category} | Scope: ${access_scope.toUpperCase()}] created successfully!`);
             } else {
                 alert(`Failed to create passcode: ${data.error}`);
             }
@@ -218,14 +220,22 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         entries.forEach(([code, details]) => {
             const cat = details.category || 'IAT & NEST';
+            const scope = details.access_scope || 'all';
             const isCustom = details.type === 'custom' || cat !== 'IAT & NEST';
             const pdfCount = isCustom ? (details.custom_pdfs ? details.custom_pdfs.length : 0) : 'Classplus Auto';
             const vidCount = details.custom_videos ? details.custom_videos.length : 0;
 
+            let scopeBadge = '<span style="background:rgba(16,185,129,0.2); color:#34d399; font-size:0.7rem; padding:1px 6px; border-radius:3px; margin-left:4px;">🌟 All</span>';
+            if (scope === 'pdf') {
+                scopeBadge = '<span style="background:rgba(59,130,246,0.2); color:#60a5fa; font-size:0.7rem; padding:1px 6px; border-radius:3px; margin-left:4px;">📄 PDF Only</span>';
+            } else if (scope === 'video') {
+                scopeBadge = '<span style="background:rgba(236,72,153,0.2); color:#f472b6; font-size:0.7rem; padding:1px 6px; border-radius:3px; margin-left:4px;">🎥 Video Only</span>';
+            }
+
             html += `
                 <tr>
                     <td>
-                        <span class="code-tag">${escapeHtml(code)}</span>
+                        <span class="code-tag">${escapeHtml(code)}</span>${scopeBadge}
                         <div style="font-size:0.75rem; color:#9ca3af; margin-top:3px;">${escapeHtml(cat)}</div>
                     </td>
                     <td><code>${escapeHtml(details.course_id || 'N/A')}</code></td>

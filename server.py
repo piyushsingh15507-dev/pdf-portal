@@ -1555,9 +1555,9 @@ def handle_admin_save_token(self, data):
 def handle_admin_create_code(self, data):
     code = data.get("code", "").strip().upper()
     course_id = data.get("course_id", "").strip()
-    course_name = data.get("course_name", "").strip()
     category = data.get("category", "IAT & NEST").strip()
     code_type = data.get("type", "classplus").strip()
+    access_scope = data.get("access_scope", "all").strip().lower()
 
     if not code:
         self.send_json({"success": False, "error": "Passcode is required."}, 400)
@@ -1572,15 +1572,19 @@ def handle_admin_create_code(self, data):
         db["access_codes"] = {}
 
     existing_custom = []
+    existing_videos = []
     if code in db["access_codes"]:
         existing_custom = db["access_codes"][code].get("custom_pdfs", [])
+        existing_videos = db["access_codes"][code].get("custom_videos", [])
 
     db["access_codes"][code] = {
         "course_id": course_id,
         "course_name": course_name or f"{category} Course ({code})",
         "category": category,
         "type": code_type,
-        "custom_pdfs": existing_custom
+        "access_scope": access_scope,
+        "custom_pdfs": existing_custom,
+        "custom_videos": existing_videos
     }
     save_db(db)
     self.send_json({"success": True, "message": f"Passcode {code} created."})
@@ -1798,6 +1802,17 @@ def handle_student_access(self, data):
     course_name = code_info.get("course_name", "")
     category = code_info.get("category", "IAT & NEST")
     code_type = code_info.get("type", "classplus")
+    code_scope = code_info.get("access_scope", "all")
+    portal_type = data.get("portal_type", "all").strip().lower()
+
+    # CHECK PORTAL SPECIFIC ACCESS SCOPE
+    if portal_type == "pdf" and code_scope == "video":
+        self.send_json({"success": False, "error": "This passcode is for Video Lectures only. Please switch to the Video Portal (video.html)."}, 403)
+        return
+
+    if portal_type == "video" and code_scope == "pdf":
+        self.send_json({"success": False, "error": "This passcode is for PDF Materials only. Please switch to the PDF Portal (student.html)."}, 403)
+        return
 
     # CHECK IF STUDENT HAS BEEN FORCE LOGGED OUT
     sessions = db.get("student_sessions", [])
