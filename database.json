@@ -1,11 +1,6 @@
 {
-  "admin_token": "TEST_TOKEN",
-  "access_codes": {
-    "SCI-2026": {
-      "course_id": "297752",
-      "course_name": "Test"
-    }
-  },
+  "admin_token": "",
+  "access_codes": {},
   "student_sessions": [],
   "blocked_ips": []
 }
