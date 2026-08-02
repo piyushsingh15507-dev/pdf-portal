@@ -80,13 +80,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const studentNameInput = document.getElementById('student-name');
 
-    // Check if passcode and name are saved in sessionStorage
-    const savedPasscode = sessionStorage.getItem('student_passcode');
-    const savedName = sessionStorage.getItem('student_name');
+    const btnLogout = document.getElementById('btn-logout');
+
+    const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+
+    // Check if passcode and name are saved in localStorage (with 4-day expiry)
+    const savedPasscode = localStorage.getItem('student_passcode');
+    const savedName = localStorage.getItem('student_name');
+    const savedTime = localStorage.getItem('student_login_time');
+    const now = Date.now();
+
     if (savedPasscode && savedName) {
-        passcodeInput.value = savedPasscode;
-        studentNameInput.value = savedName;
-        unlockMaterials(savedPasscode, savedName);
+        if (savedTime && (now - parseInt(savedTime)) > FOUR_DAYS_MS) {
+            // Auto logout after 4 days of inactivity
+            clearStudentSession();
+            showError('Your 4-day session expired. Please enter your passcode again.');
+        } else {
+            passcodeInput.value = savedPasscode;
+            studentNameInput.value = savedName;
+            unlockMaterials(savedPasscode, savedName);
+        }
+    }
+
+    function clearStudentSession() {
+        localStorage.removeItem('student_passcode');
+        localStorage.removeItem('student_name');
+        localStorage.removeItem('student_login_time');
+        sessionStorage.removeItem('student_passcode');
+        sessionStorage.removeItem('student_name');
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        loginSection.classList.remove('hidden');
+        dashboardSection.classList.add('hidden');
+        loginError.classList.add('hidden');
     }
 
     btnUnlock.addEventListener('click', () => {
@@ -113,13 +138,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnChangeCode.addEventListener('click', () => {
-        sessionStorage.removeItem('student_passcode');
-        sessionStorage.removeItem('student_name');
-        loginSection.classList.remove('hidden');
-        dashboardSection.classList.add('hidden');
+        clearStudentSession();
         passcodeInput.value = '';
-        loginError.classList.add('hidden');
     });
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            clearStudentSession();
+            passcodeInput.value = '';
+        });
+    }
 
     function isDevToolsOpen() {
         const threshold = 160;
@@ -173,6 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.success && Array.isArray(data.pdfs)) {
+                localStorage.setItem('student_passcode', passcode);
+                localStorage.setItem('student_name', name);
+                localStorage.setItem('student_login_time', Date.now().toString());
+
                 sessionStorage.setItem('student_passcode', passcode);
                 sessionStorage.setItem('student_name', name);
                 currentPdfs = data.pdfs;
@@ -194,8 +226,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Start 10-second Real-Time Online Heartbeat
                 startHeartbeat(passcode, name);
             } else {
-                showError(data.error || 'Invalid Access Code. Please check with your instructor.');
-                sessionStorage.removeItem('student_passcode');
+                if (data.force_logout) {
+                    clearStudentSession();
+                    showError('You have been logged out by the instructor.');
+                } else {
+                    showError(data.error || 'Invalid Access Code. Please check with your instructor.');
+                    clearStudentSession();
+                }
             }
         } catch (err) {
             showError(`Server Connection Error: ${err.message}`);
@@ -210,16 +247,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function startHeartbeat(passcode, name) {
         if (heartbeatTimer) clearInterval(heartbeatTimer);
         
-        const sendPing = () => {
-            fetch('/api/student/heartbeat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ passcode, name })
-            }).catch(() => {});
+        const sendPing = async () => {
+            try {
+                const res = await fetch('/api/student/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passcode, name })
+                });
+                const data = await res.json();
+                if (data.force_logout) {
+                    clearStudentSession();
+                    alert('⚠️ Notice: You have been logged out by the instructor.');
+                }
+            } catch (e) {}
         };
 
         sendPing();
-        heartbeatTimer = setInterval(sendPing, 10000); // Heartbeat every 10 seconds
+        heartbeatTimer = setInterval(sendPing, 10000);
     }
 
     function renderPdfTable(list) {

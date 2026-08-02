@@ -237,6 +237,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_block_ip(data)
         elif path == "/api/admin/unblock-ip":
             self.handle_admin_unblock_ip(data)
+        elif path == "/api/admin/force-logout":
+            self.handle_admin_force_logout(data)
         elif path == "/api/student/access":
             self.handle_student_access(data)
         elif path == "/api/student/heartbeat":
@@ -1667,6 +1669,25 @@ def handle_admin_unblock_ip(self, data):
 
     self.send_json({"success": True, "message": f"IP {ip} unblocked."})
 
+def handle_admin_force_logout(self, data):
+    ip = data.get("ip", "").strip()
+    passcode = data.get("passcode", "").strip().upper()
+
+    if not ip:
+        self.send_json({"success": False, "error": "IP address is required."}, 400)
+        return
+
+    db = load_db()
+    sessions = db.get("student_sessions", [])
+    found = False
+    for s in sessions:
+        if s.get("ip") == ip and (not passcode or s.get("passcode") == passcode):
+            s["force_logout"] = True
+            found = True
+
+    save_db(db)
+    self.send_json({"success": True, "message": f"Force logged out student at IP {ip}."})
+
 def handle_student_access(self, data):
     passcode = data.get("passcode", "").strip().upper()
     student_name = data.get("name", "Anonymous Student").strip()
@@ -1695,7 +1716,7 @@ def handle_student_access(self, data):
     category = code_info.get("category", "IAT & NEST")
     code_type = code_info.get("type", "classplus")
 
-    # LOG LIVE STUDENT SESSION FOR ADMIN MONITOR
+    # CHECK IF STUDENT HAS BEEN FORCE LOGGED OUT
     sessions = db.get("student_sessions", [])
     now_ts = time.time()
     now_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -1703,6 +1724,11 @@ def handle_student_access(self, data):
     session_found = False
     for s in sessions:
         if s.get("ip") == client_ip and s.get("passcode") == passcode:
+            if s.get("force_logout", False):
+                s["force_logout"] = False
+                save_db(db)
+                self.send_json({"success": False, "force_logout": True, "error": "Your session was logged out by the instructor."}, 401)
+                return
             s["name"] = student_name
             s["time"] = now_str
             s["last_ping"] = now_ts
@@ -1769,6 +1795,11 @@ def handle_student_heartbeat(self, data):
     found = False
     for s in sessions:
         if s.get("ip") == client_ip and s.get("passcode") == passcode:
+            if s.get("force_logout", False):
+                s["force_logout"] = False
+                save_db(db)
+                self.send_json({"success": False, "force_logout": True, "error": "Your session was logged out by the instructor."}, 401)
+                return
             s["name"] = student_name
             s["time"] = now_str
             s["last_ping"] = now_ts
@@ -1824,6 +1855,7 @@ APIHandler.handle_admin_add_custom_pdf = handle_admin_add_custom_pdf
 APIHandler.handle_admin_delete_custom_pdf = handle_admin_delete_custom_pdf
 APIHandler.handle_admin_block_ip = handle_admin_block_ip
 APIHandler.handle_admin_unblock_ip = handle_admin_unblock_ip
+APIHandler.handle_admin_force_logout = handle_admin_force_logout
 APIHandler.handle_student_access = handle_student_access
 APIHandler.handle_student_heartbeat = handle_student_heartbeat
 APIHandler.handle_student_click = handle_student_click

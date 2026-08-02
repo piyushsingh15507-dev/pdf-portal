@@ -269,18 +269,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${clickDisplay}</td>
                     <td><small style="color:#9ca3af;">${escapeHtml(s.time)}</small></td>
                     <td style="text-align: center;">
-                        ${isBlocked ? 
-                            `<button class="btn btn-secondary btn-unblock-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981;">
-                                🟢 Unblock Student
-                            </button>` : 
-                            `<button class="btn btn-danger btn-block-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}">
-                                🚫 Block Student
-                            </button>`
-                        }
+                        <div style="display:flex; gap:6px; justify-content:center;">
+                            <button class="btn btn-secondary btn-force-logout" data-ip="${escapeHtml(s.ip)}" data-passcode="${escapeHtml(s.passcode)}" data-name="${escapeHtml(s.name)}" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); padding: 4px 8px; font-size: 0.8rem;">
+                                🚪 Logout
+                            </button>
+                            ${isBlocked ? 
+                                `<button class="btn btn-secondary btn-unblock-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; padding: 4px 8px; font-size: 0.8rem;">
+                                    🟢 Unblock
+                                </button>` : 
+                                `<button class="btn btn-danger btn-block-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" style="padding: 4px 8px; font-size: 0.8rem;">
+                                    🚫 Block
+                                </button>`
+                            }
+                        </div>
                     </td>
                 </tr>`;
         });
         studentsTbody.innerHTML = html;
+
+        document.querySelectorAll('.btn-force-logout').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const ipToLogout = e.target.getAttribute('data-ip');
+                const pCode = e.target.getAttribute('data-passcode');
+                const studentName = e.target.getAttribute('data-name');
+
+                if (!confirm(`Force logout student '${studentName}' (${ipToLogout})?`)) return;
+
+                try {
+                    const res = await fetch('/api/admin/force-logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip: ipToLogout, passcode: pCode })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert(`Student '${studentName}' has been FORCE LOGGED OUT!`);
+                        loadAdminData();
+                    } else {
+                        alert(`Error: ${data.error}`);
+                    }
+                } catch (err) {
+                    alert(`Error: ${err.message}`);
+                }
+            });
+        });
 
         document.querySelectorAll('.btn-block-ip').forEach(btn => {
             btn.addEventListener('click', async (e) => {
