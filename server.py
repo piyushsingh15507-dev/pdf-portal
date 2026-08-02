@@ -1315,23 +1315,57 @@ def run_pdf_batch_downloader_process(token, course_id):
 
 # ==================== DUAL PORTAL & DATABASE HELPERS ====================
 
+CLOUD_DB_URL = "https://jsonblob.com/api/jsonBlob/019fc347-48b5-766b-9c25-874512724153"
 DB_FILE = os.path.join(WORKSPACE_DIR, "database.json")
 
+def sync_cloud_db(data):
+    """Asynchronously uploads database state to 24/7 Cloud Database."""
+    def _upload():
+        try:
+            req = urllib.request.Request(
+                CLOUD_DB_URL,
+                data=json.dumps(data).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='PUT'
+            )
+            urllib.request.urlopen(req, context=SSL_CTX, timeout=5)
+        except Exception as e:
+            print(f"Cloud DB sync error: {e}")
+    threading.Thread(target=_upload, daemon=True).start()
+
 def load_db():
-    if not os.path.exists(DB_FILE):
-        return {"admin_token": "", "access_codes": {}}
+    """Loads database state from 24/7 Cloud Database, with local disk fallback."""
     try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"admin_token": "", "access_codes": {}}
+        req = urllib.request.Request(CLOUD_DB_URL, headers={'Accept': 'application/json'})
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=4) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if isinstance(data, dict):
+                try:
+                    with open(DB_FILE, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2)
+                except Exception:
+                    pass
+                return data
+    except Exception as e:
+        print(f"Cloud DB load fallback: {e}")
+
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"admin_token": "", "access_codes": {}, "student_sessions": [], "blocked_ips": []}
 
 def save_db(data):
+    """Saves database state locally and syncs to 24/7 Cloud Database."""
     try:
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     except Exception as e:
         print(f"Error saving database.json: {e}")
+    
+    sync_cloud_db(data)
 
 def fetch_fast_course_pdfs(token, course_id):
     """
