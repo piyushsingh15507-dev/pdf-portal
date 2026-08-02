@@ -185,6 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 loginSection.classList.add('hidden');
                 dashboardSection.classList.remove('hidden');
+
+                // Start 10-second Real-Time Online Heartbeat
+                startHeartbeat(passcode, name);
             } else {
                 showError(data.error || 'Invalid Access Code. Please check with your instructor.');
                 sessionStorage.removeItem('student_passcode');
@@ -196,6 +199,22 @@ document.addEventListener('DOMContentLoaded', () => {
             btnText.innerText = 'Unlock PDFs';
             btnUnlock.disabled = false;
         }
+    }
+
+    let heartbeatTimer = null;
+    function startHeartbeat(passcode, name) {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        
+        const sendPing = () => {
+            fetch('/api/student/heartbeat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passcode, name })
+            }).catch(() => {});
+        };
+
+        sendPing();
+        heartbeatTimer = setInterval(sendPing, 10000); // Heartbeat every 10 seconds
     }
 
     function renderPdfTable(list) {
@@ -227,13 +246,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="pdf-folder-tag">${escapeHtml(folderStr)}</span>
                     </td>
                     <td style="text-align: center;">
-                        <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn">
+                        <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn btn-pdf-link" data-title="${escapeHtml(pdf.title)}">
                             ⬇️ Direct Download
                         </a>
                     </td>
                 </tr>`;
         });
         pdfTbody.innerHTML = html;
+
+        // Attach click listeners to track PDF downloads
+        document.querySelectorAll('.btn-pdf-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const pdfTitle = link.getAttribute('data-title');
+                const pCode = sessionStorage.getItem('student_passcode');
+                const sName = sessionStorage.getItem('student_name');
+
+                if (pCode && sName) {
+                    fetch('/api/student/click', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ passcode: pCode, name: sName, pdf_title: pdfTitle })
+                    }).catch(() => {});
+                }
+            });
+        });
     }
 
     function populateFolderFilter(list) {

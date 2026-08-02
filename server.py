@@ -235,6 +235,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_unblock_ip(data)
         elif path == "/api/student/access":
             self.handle_student_access(data)
+        elif path == "/api/student/heartbeat":
+            self.handle_student_heartbeat(data)
+        elif path == "/api/student/click":
+            self.handle_student_click(data)
         else:
             self.send_error(404, "Endpoint Not Found")
 
@@ -1506,11 +1510,17 @@ def get_client_ip(handler):
 
 def handle_admin_get_data(self):
     db = load_db()
+    sessions = db.get("student_sessions", [])
+    now_ts = time.time()
+    for s in sessions:
+        last_ping = s.get("last_ping", 0)
+        s["is_online"] = (now_ts - last_ping < 25)
+
     self.send_json({
         "success": True,
         "admin_token": db.get("admin_token", ""),
         "access_codes": db.get("access_codes", {}),
-        "student_sessions": db.get("student_sessions", []),
+        "student_sessions": sessions,
         "blocked_ips": db.get("blocked_ips", [])
     })
 
@@ -1617,6 +1627,7 @@ def handle_student_access(self, data):
 
     # LOG LIVE STUDENT SESSION FOR ADMIN MONITOR
     sessions = db.get("student_sessions", [])
+    now_ts = time.time()
     now_str = time.strftime("%Y-%m-%d %H:%M:%S")
     
     session_found = False
@@ -1624,6 +1635,7 @@ def handle_student_access(self, data):
         if s.get("ip") == client_ip and s.get("passcode") == passcode:
             s["name"] = student_name
             s["time"] = now_str
+            s["last_ping"] = now_ts
             session_found = True
             break
             
@@ -1632,7 +1644,10 @@ def handle_student_access(self, data):
             "name": student_name,
             "passcode": passcode,
             "ip": client_ip,
-            "time": now_str
+            "time": now_str,
+            "last_ping": now_ts,
+            "clicks_count": 0,
+            "clicked_pdfs": []
         })
         db["student_sessions"] = sessions[:100]
         
@@ -1650,6 +1665,66 @@ def handle_student_access(self, data):
     except Exception as e:
         self.send_json({"success": False, "error": f"Error scanning PDFs: {e}"}, 500)
 
+def handle_student_heartbeat(self, data):
+    passcode = data.get("passcode", "").strip().upper()
+    student_name = data.get("name", "Anonymous Student").strip()
+    client_ip = get_client_ip(self)
+
+    db = load_db()
+    sessions = db.get("student_sessions", [])
+    now_ts = time.time()
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    found = False
+    for s in sessions:
+        if s.get("ip") == client_ip and s.get("passcode") == passcode:
+            s["name"] = student_name
+            s["time"] = now_str
+            s["last_ping"] = now_ts
+            found = True
+            break
+
+    if not found:
+        sessions.insert(0, {
+            "name": student_name,
+            "passcode": passcode,
+            "ip": client_ip,
+            "time": now_str,
+            "last_ping": now_ts,
+            "clicks_count": 0,
+            "clicked_pdfs": []
+        })
+        db["student_sessions"] = sessions[:100]
+
+    save_db(db)
+    self.send_json({"success": True})
+
+def handle_student_click(self, data):
+    passcode = data.get("passcode", "").strip().upper()
+    student_name = data.get("name", "Anonymous Student").strip()
+    pdf_title = data.get("pdf_title", "Untitled PDF").strip()
+    client_ip = get_client_ip(self)
+
+    db = load_db()
+    sessions = db.get("student_sessions", [])
+    now_ts = time.time()
+    now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    for s in sessions:
+        if s.get("ip") == client_ip and s.get("passcode") == passcode:
+            s["name"] = student_name
+            s["time"] = now_str
+            s["last_ping"] = now_ts
+            s["clicks_count"] = s.get("clicks_count", 0) + 1
+            if "clicked_pdfs" not in s or not isinstance(s["clicked_pdfs"], list):
+                s["clicked_pdfs"] = []
+            if pdf_title not in s["clicked_pdfs"]:
+                s["clicked_pdfs"].append(pdf_title)
+            break
+
+    save_db(db)
+    self.send_json({"success": True})
+
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
@@ -1657,6 +1732,8 @@ APIHandler.handle_admin_delete_code = handle_admin_delete_code
 APIHandler.handle_admin_block_ip = handle_admin_block_ip
 APIHandler.handle_admin_unblock_ip = handle_admin_unblock_ip
 APIHandler.handle_student_access = handle_student_access
+APIHandler.handle_student_heartbeat = handle_student_heartbeat
+APIHandler.handle_student_click = handle_student_click
 
 def run_server():
     # Multi-Threaded HTTP Server: Spawns independent threads for 100+ concurrent students

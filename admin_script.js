@@ -162,12 +162,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderStudentsTable(sessionsList, blockedIpsList) {
-        activeStudentsBadge.innerText = `${sessionsList.length} Connected Students`;
+        let onlineCount = 0;
+        sessionsList.forEach(s => {
+            if (s.is_online && !blockedIpsList.includes(s.ip)) onlineCount++;
+        });
+
+        activeStudentsBadge.innerText = `${onlineCount} Online | ${sessionsList.length} Total Sessions`;
 
         if (sessionsList.length === 0) {
             studentsTbody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="6" style="text-align: center; padding: 30px; color: #9ca3af;">
+                    <td colspan="7" style="text-align: center; padding: 30px; color: #9ca3af;">
                         📡 No student activity recorded yet. When students enter their passcode, their name and IP will appear here live!
                     </td>
                 </tr>`;
@@ -177,17 +182,34 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         sessionsList.forEach(s => {
             const isBlocked = blockedIpsList.includes(s.ip);
-            const statusLabel = isBlocked ? 
-                '<span style="color:#ef4444; font-weight:600;">🚫 Blocked</span>' : 
-                '<span style="color:#34d399; font-weight:600;">🟢 Online</span>';
+            let statusLabel = '';
+
+            if (isBlocked) {
+                statusLabel = '<span style="color:#ef4444; font-weight:600; background:rgba(239,68,68,0.15); padding:3px 8px; border-radius:4px;">🚫 Blocked</span>';
+            } else if (s.is_online) {
+                statusLabel = '<span style="color:#34d399; font-weight:600; background:rgba(52,211,153,0.15); padding:3px 8px; border-radius:4px;">🟢 Online</span>';
+            } else {
+                statusLabel = '<span style="color:#9ca3af; font-weight:500; background:rgba(156,163,175,0.15); padding:3px 8px; border-radius:4px;">🔴 Offline</span>';
+            }
+
+            const clickCount = s.clicks_count || 0;
+            const clickedList = Array.isArray(s.clicked_pdfs) ? s.clicked_pdfs : [];
+            const clickedTooltip = clickedList.length > 0 ? clickedList.join('\n• ') : 'No PDFs clicked yet';
+            const clickDisplay = `<div title="Downloaded PDFs:\n• ${escapeHtml(clickedTooltip)}">
+                <span style="background:rgba(59,130,246,0.2); color:#60a5fa; font-weight:600; padding:2px 8px; border-radius:4px; font-size:0.85rem;">
+                    📥 ${clickCount} Downloads
+                </span>
+                ${clickedList.length > 0 ? `<div style="font-size:0.75rem; color:#9ca3af; margin-top:3px; max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(clickedList[clickedList.length-1])}</div>` : ''}
+            </div>`;
 
             html += `
                 <tr>
                     <td><b>${escapeHtml(s.name)}</b></td>
                     <td><span class="code-tag">${escapeHtml(s.passcode)}</span></td>
                     <td><code>${escapeHtml(s.ip)}</code></td>
-                    <td><small style="color:#9ca3af;">${escapeHtml(s.time)}</small></td>
                     <td>${statusLabel}</td>
+                    <td>${clickDisplay}</td>
+                    <td><small style="color:#9ca3af;">${escapeHtml(s.time)}</small></td>
                     <td style="text-align: center;">
                         ${isBlocked ? 
                             `<button class="btn btn-secondary btn-unblock-ip" data-ip="${escapeHtml(s.ip)}" data-name="${escapeHtml(s.name)}" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981;">
