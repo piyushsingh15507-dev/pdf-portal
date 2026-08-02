@@ -207,9 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 sessionStorage.setItem('student_passcode', passcode);
                 sessionStorage.setItem('student_name', name);
-                currentPdfs = data.pdfs;
+                currentPdfs = data.pdfs || [];
+                currentVideos = data.videos || [];
                 
-                courseTitleDisplay.innerText = data.course_name ? `📖 ${data.course_name}` : '📖 Course PDF Materials';
+                courseTitleDisplay.innerText = data.course_name ? `📖 ${data.course_name}` : '📖 Course Study Materials';
                 accessCodeBadge.innerText = `Student: ${name} | Code: ${passcode}`;
 
                 const categoryBadge = document.getElementById('category-badge');
@@ -217,8 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     categoryBadge.innerText = `Category: ${data.category || 'IAT & NEST'}`;
                 }
 
+                document.getElementById('pdf-count-label').innerText = currentPdfs.length;
+                document.getElementById('vid-count-label').innerText = currentVideos.length;
+
                 renderPdfTable(currentPdfs);
                 populateFolderFilter(currentPdfs);
+                renderVideoGrid(currentVideos);
 
                 loginSection.classList.add('hidden');
                 dashboardSection.classList.remove('hidden');
@@ -401,17 +406,138 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function applyFilters() {
-        const query = searchInput.value.toLowerCase().trim();
-        const selectedFolder = folderFilterSelect.value;
+    // TAB SWITCHING: PDFs vs Videos
+    const tabPdfs = document.getElementById('tab-pdfs');
+    const tabVideos = document.getElementById('tab-videos');
+    const pdfContentWrapper = document.getElementById('pdf-content-wrapper');
+    const videoContentWrapper = document.getElementById('video-content-wrapper');
 
-        const filtered = currentPdfs.filter(pdf => {
-            const matchesQuery = pdf.title.toLowerCase().includes(query) || (pdf.folder_path && pdf.folder_path.toLowerCase().includes(query));
-            const matchesFolder = selectedFolder === 'ALL' || pdf.folder_path === selectedFolder;
-            return matchesQuery && matchesFolder;
+    if (tabPdfs && tabVideos) {
+        tabPdfs.addEventListener('click', () => {
+            tabPdfs.classList.add('active');
+            tabPdfs.style.background = 'rgba(59, 130, 246, 0.2)';
+            tabPdfs.style.color = '#60a5fa';
+            tabPdfs.style.border = '1px solid #3b82f6';
+
+            tabVideos.classList.remove('active');
+            tabVideos.style.background = 'rgba(255, 255, 255, 0.05)';
+            tabVideos.style.color = '#9ca3af';
+            tabVideos.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+
+            pdfContentWrapper.classList.remove('hidden');
+            videoContentWrapper.classList.add('hidden');
         });
 
-        renderPdfTable(filtered);
+        tabVideos.addEventListener('click', () => {
+            tabVideos.classList.add('active');
+            tabVideos.style.background = 'rgba(236, 72, 153, 0.2)';
+            tabVideos.style.color = '#f472b6';
+            tabVideos.style.border = '1px solid #ec4899';
+
+            tabPdfs.classList.remove('active');
+            tabPdfs.style.background = 'rgba(255, 255, 255, 0.05)';
+            tabPdfs.style.color = '#9ca3af';
+            tabPdfs.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+
+            videoContentWrapper.classList.remove('hidden');
+            pdfContentWrapper.classList.add('hidden');
+        });
+    }
+
+    let currentVideos = [];
+    const videoGrid = document.getElementById('video-grid');
+    const videoSearchInput = document.getElementById('video-search-input');
+    const videoPlayerModal = document.getElementById('video-player-modal');
+    const videoModalTitle = document.getElementById('video-modal-title');
+    const videoIframe = document.getElementById('video-iframe');
+    const btnCloseVideo = document.getElementById('btn-close-video');
+    const videoWatermark = document.getElementById('video-watermark');
+
+    function closeVideoPlayer() {
+        if (videoPlayerModal) {
+            videoPlayerModal.classList.add('hidden');
+            if (videoIframe) videoIframe.src = '';
+        }
+    }
+
+    if (btnCloseVideo) btnCloseVideo.addEventListener('click', closeVideoPlayer);
+    if (videoPlayerModal) {
+        videoPlayerModal.addEventListener('click', (e) => {
+            if (e.target === videoPlayerModal) closeVideoPlayer();
+        });
+    }
+
+    function renderVideoGrid(list) {
+        if (!videoGrid) return;
+
+        if (!list || list.length === 0) {
+            videoGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #9ca3af; background: rgba(15, 23, 42, 0.5); border-radius: 12px; border: 1px dashed rgba(255, 255, 255, 0.1);">
+                    🎥 No video lectures added to this course yet.
+                </div>`;
+            return;
+        }
+
+        let html = '';
+        list.forEach((vid, index) => {
+            const folderStr = vid.folder_path ? vid.folder_path : 'Main Lectures';
+            html += `
+                <div class="video-card" style="background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s, border-color 0.2s;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span style="font-size: 1.6rem;">🎥</span>
+                            <span style="background: rgba(236, 72, 153, 0.15); color: #f472b6; font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; font-weight: 500;">
+                                ${escapeHtml(folderStr)}
+                            </span>
+                        </div>
+                        <h4 style="font-size: 0.98rem; color: #f3f4f6; font-weight: 600; margin-bottom: 8px; line-height: 1.4;">
+                            ${escapeHtml(vid.title)}
+                        </h4>
+                    </div>
+                    <button class="btn btn-primary btn-play-video" data-title="${escapeHtml(vid.title)}" data-url="${escapeHtml(vid.url)}" style="margin-top: 14px; width: 100%; background: linear-gradient(135deg, #ec4899, #8b5cf6); padding: 8px; font-size: 0.88rem; font-weight: 600;">
+                        ▶️ Play Lecture
+                    </button>
+                </div>`;
+        });
+        videoGrid.innerHTML = html;
+
+        document.querySelectorAll('.btn-play-video').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const title = btn.getAttribute('data-title');
+                const videoUrl = btn.getAttribute('data-url');
+                const sName = localStorage.getItem('student_name') || sessionStorage.getItem('student_name') || 'Student';
+                const pCode = localStorage.getItem('student_passcode') || sessionStorage.getItem('student_passcode') || '';
+
+                // Set Security Watermark Overlay
+                if (videoWatermark) {
+                    const todayStr = new Date().toLocaleDateString();
+                    videoWatermark.innerText = `🛡️ PROTECTED | ${sName} | Code: ${pCode} | ${todayStr}`;
+                }
+
+                // Log click in admin monitor
+                if (pCode && sName) {
+                    fetch('/api/student/click', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ passcode: pCode, name: sName, pdf_title: `[VIDEO PLAY] ${title}` })
+                    }).catch(() => {});
+                }
+
+                if (videoModalTitle) videoModalTitle.innerText = `🎥 ${title}`;
+                if (videoIframe) videoIframe.src = videoUrl;
+                if (videoPlayerModal) videoPlayerModal.classList.remove('hidden');
+            });
+        });
+    }
+
+    if (videoSearchInput) {
+        videoSearchInput.addEventListener('input', () => {
+            const query = videoSearchInput.value.toLowerCase().trim();
+            const filtered = currentVideos.filter(v => {
+                return v.title.toLowerCase().includes(query) || (v.folder_path && v.folder_path.toLowerCase().includes(query));
+            });
+            renderVideoGrid(filtered);
+        });
     }
 
     searchInput.addEventListener('input', applyFilters);

@@ -233,6 +233,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_add_custom_pdf(data)
         elif path == "/api/admin/delete-custom-pdf":
             self.handle_admin_delete_custom_pdf(data)
+        elif path == "/api/admin/add-custom-video":
+            self.handle_admin_add_custom_video(data)
+        elif path == "/api/admin/delete-custom-video":
+            self.handle_admin_delete_custom_video(data)
         elif path == "/api/admin/block-ip":
             self.handle_admin_block_ip(data)
         elif path == "/api/admin/unblock-ip":
@@ -1650,6 +1654,72 @@ def handle_admin_delete_custom_pdf(self, data):
 
     self.send_json({"success": False, "error": "PDF not found."}, 404)
 
+def handle_admin_add_custom_video(self, data):
+    code = data.get("code", "").strip().upper()
+    title = data.get("title", "").strip()
+    url = normalize_video_url(data.get("url", "").strip())
+    folder_path = data.get("folder_path", "Main Lectures").strip()
+
+    if not code or not title or not url:
+        self.send_json({"success": False, "error": "Passcode, Title, and Video URL are required."}, 400)
+        return
+
+    db = load_db()
+    access_codes = db.get("access_codes", {})
+    if code not in access_codes:
+        self.send_json({"success": False, "error": f"Passcode '{code}' does not exist."}, 404)
+        return
+
+    info = access_codes[code]
+    if "custom_videos" not in info:
+        info["custom_videos"] = []
+
+    info["custom_videos"].append({
+        "title": title,
+        "folder_path": folder_path or "Main Lectures",
+        "url": url,
+        "video_id": f"vid_{int(time.time() * 1000)}"
+    })
+    save_db(db)
+    self.send_json({"success": True, "message": f"Video '{title}' added to passcode {code}."})
+
+def handle_admin_delete_custom_video(self, data):
+    code = data.get("code", "").strip().upper()
+    try:
+        index = int(data.get("index"))
+    except (ValueError, TypeError):
+        self.send_json({"success": False, "error": "Valid Video index is required."}, 400)
+        return
+
+    db = load_db()
+    access_codes = db.get("access_codes", {})
+    if code in access_codes and "custom_videos" in access_codes[code]:
+        videos = access_codes[code]["custom_videos"]
+        if 0 <= index < len(videos):
+            removed = videos.pop(index)
+            save_db(db)
+            self.send_json({"success": True, "message": f"Video '{removed.get('title')}' deleted."})
+            return
+
+    self.send_json({"success": False, "error": "Video not found."}, 404)
+
+def normalize_video_url(url):
+    if not url:
+        return ""
+    url = url.strip()
+    if "youtube.com/watch" in url:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        v_id = params.get("v", [""])[0]
+        if v_id:
+            return f"https://www.youtube-nocookie.com/embed/{v_id}?rel=0&modestbranding=1&controls=1&enablejsapi=1"
+    elif "youtu.be/" in url:
+        v_id = url.split("youtu.be/")[1].split("?")[0].split("/")[0]
+        if v_id:
+            return f"https://www.youtube-nocookie.com/embed/{v_id}?rel=0&modestbranding=1&controls=1&enablejsapi=1"
+    return url
+
 def handle_admin_block_ip(self, data):
     ip = data.get("ip", "").strip()
     if not ip:
@@ -1758,16 +1828,22 @@ def handle_student_access(self, data):
         
     save_db(db)
 
-    # SERVE CUSTOM MANUAL PDFS (CUET / JEE) OR CLASSPLUS COURSES (IAT & NEST)
+    # SERVE CUSTOM MANUAL PDFS & VIDEOS (CUET / JEE / CUSTOM) OR CLASSPLUS COURSES (IAT & NEST)
+    custom_videos = code_info.get("custom_videos", [])
+    # Normalize video URLs
+    for vid in custom_videos:
+        if "url" in vid:
+            vid["url"] = normalize_video_url(vid["url"])
+
     if code_type == "custom" or category in ["CUET", "JEE"]:
         custom_pdfs = code_info.get("custom_pdfs", [])
-        # Ensure all URLs are normalized to direct raw download links
         for pdf in custom_pdfs:
             if "url" in pdf:
                 pdf["url"] = normalize_pdf_url(pdf["url"])
         self.send_json({
             "success": True,
             "pdfs": custom_pdfs,
+            "videos": custom_videos,
             "course_name": course_name,
             "course_id": course_id,
             "category": category,
@@ -1782,11 +1858,11 @@ def handle_student_access(self, data):
         return
 
     try:
-        # High-performance cached retrieval (0.005s response for 100+ concurrent students)
         pdfs = get_cached_pdfs(admin_token, course_id)
         self.send_json({
             "success": True,
             "pdfs": pdfs,
+            "videos": custom_videos,
             "course_name": course_name,
             "course_id": course_id,
             "category": category,
@@ -1866,6 +1942,8 @@ APIHandler.handle_admin_create_code = handle_admin_create_code
 APIHandler.handle_admin_delete_code = handle_admin_delete_code
 APIHandler.handle_admin_add_custom_pdf = handle_admin_add_custom_pdf
 APIHandler.handle_admin_delete_custom_pdf = handle_admin_delete_custom_pdf
+APIHandler.handle_admin_add_custom_video = handle_admin_add_custom_video
+APIHandler.handle_admin_delete_custom_video = handle_admin_delete_custom_video
 APIHandler.handle_admin_block_ip = handle_admin_block_ip
 APIHandler.handle_admin_unblock_ip = handle_admin_unblock_ip
 APIHandler.handle_admin_force_logout = handle_admin_force_logout

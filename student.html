@@ -81,35 +81,58 @@
                     </div>
                 </div>
 
-                <!-- Search & Filters -->
-                <div class="filter-bar">
-                    <input type="text" id="pdf-search-input" placeholder="🔎 Search PDF by title or folder name...">
-                    <select id="pdf-folder-filter">
-                        <option value="ALL">All Folders</option>
-                    </select>
+                <!-- Navigation Tabs: PDFs vs Videos -->
+                <div class="content-tabs" style="display: flex; gap: 12px; margin-top: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 10px;">
+                    <button id="tab-pdfs" class="tab-btn active" style="padding: 8px 18px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                        📄 PDF Materials (<span id="pdf-count-label">0</span>)
+                    </button>
+                    <button id="tab-videos" class="tab-btn" style="padding: 8px 18px; background: rgba(255, 255, 255, 0.05); color: #9ca3af; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                        🎥 Video Lectures (<span id="vid-count-label">0</span>)
+                    </button>
                 </div>
 
-                <!-- PDF List Table -->
-                <div class="pdf-table-container">
-                    <table class="pdf-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">#</th>
-                                <th>PDF Document Title</th>
-                                <th>Folder Location</th>
-                                <th style="width: 260px; text-align: center;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="student-pdf-tbody">
-                            <!-- Dynamically populated -->
-                        </tbody>
-                    </table>
+                <!-- PDF Section -->
+                <div id="pdf-content-wrapper">
+                    <!-- Search & Filters -->
+                    <div class="filter-bar" style="margin-top: 16px;">
+                        <input type="text" id="pdf-search-input" placeholder="🔎 Search PDF by title or folder name...">
+                        <select id="pdf-folder-filter">
+                            <option value="ALL">All Folders</option>
+                        </select>
+                    </div>
+
+                    <!-- PDF List Table -->
+                    <div class="pdf-table-container">
+                        <table class="pdf-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th>PDF Document Title</th>
+                                    <th>Folder Location</th>
+                                    <th style="width: 260px; text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="student-pdf-tbody">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Video Section (Initially Hidden) -->
+                <div id="video-content-wrapper" class="hidden" style="margin-top: 16px;">
+                    <div class="filter-bar">
+                        <input type="text" id="video-search-input" placeholder="🔎 Search Video Lectures by title or chapter...">
+                    </div>
+                    <div id="video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+                        <!-- Dynamically populated video cards -->
+                    </div>
                 </div>
             </section>
         </main>
 
         <footer class="app-footer" style="text-align: center;">
-            <p>Student PDF Study Material Portal &copy; 2026 | Fast Direct Downloads</p>
+            <p>Student PDF Study Material & Video Lecture Portal &copy; 2026 | Fast Secure Streaming</p>
         </footer>
     </div>
 
@@ -127,6 +150,28 @@
             </div>
             <div class="modal-body" style="flex: 1; position: relative; background: #090d16;">
                 <iframe id="preview-iframe" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player Modal (With Dynamic Watermark & Protection) -->
+    <div id="video-player-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 8, 20, 0.95); backdrop-filter: blur(12px); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <div class="modal-content" style="width: 94%; max-width: 1100px; height: 88vh; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+            <div class="modal-header" style="padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">🎥</span>
+                    <h3 id="video-modal-title" style="font-size: 1.05rem; color: #f3f4f6; font-weight: 600;">Video Lecture</h3>
+                </div>
+                <button id="btn-close-video" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 6px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    ✖ Close Video
+                </button>
+            </div>
+            <div class="modal-body" style="flex: 1; position: relative; background: #000; overflow: hidden;">
+                <!-- Floating Translucent Security Watermark -->
+                <div id="video-watermark" style="position: absolute; top: 15%; left: 20%; pointer-events: none; z-index: 999; opacity: 0.35; color: rgba(255, 255, 255, 0.7); font-size: 0.95rem; font-weight: 700; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); user-select: none;">
+                    Student Watermark
+                </div>
+                <iframe id="video-iframe" src="" style="width: 100%; height: 100%; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
         </div>
     </div>

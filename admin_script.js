@@ -132,7 +132,51 @@ document.addEventListener('DOMContentLoaded', () => {
             btnAddCustomPdf.disabled = false;
             btnAddCustomPdf.innerText = '➕ Add PDF to Passcode';
         }
-    });
+    const customVidCodeInput = document.getElementById('custom-vid-code');
+    const customVidTitleInput = document.getElementById('custom-vid-title');
+    const customVidFolderInput = document.getElementById('custom-vid-folder');
+    const customVidUrlInput = document.getElementById('custom-vid-url');
+    const btnAddCustomVid = document.getElementById('btn-add-custom-vid');
+
+    if (btnAddCustomVid) {
+        btnAddCustomVid.addEventListener('click', async () => {
+            const code = customVidCodeInput.value.trim().toUpperCase();
+            const title = customVidTitleInput.value.trim();
+            const folder_path = customVidFolderInput.value.trim() || 'Main Lectures';
+            const url = customVidUrlInput.value.trim();
+
+            if (!code || !title || !url) {
+                alert('Please enter Target Passcode, Video Title, and Video Stream / YouTube URL.');
+                return;
+            }
+
+            btnAddCustomVid.disabled = true;
+            btnAddCustomVid.innerText = 'Adding Video...';
+
+            try {
+                const res = await fetch('/api/admin/add-custom-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, title, folder_path, url })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    customVidTitleInput.value = '';
+                    customVidUrlInput.value = '';
+                    loadAdminData();
+                    alert(`Video '${title}' added successfully to passcode '${code}'!`);
+                } else {
+                    alert(`Failed to add Video: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnAddCustomVid.disabled = false;
+                btnAddCustomVid.innerText = '🎥 Add Video Lecture to Passcode';
+            }
+        });
+    }
 
     const activeStudentsBadge = document.getElementById('active-students-badge');
     const studentsTbody = document.getElementById('students-tbody');
@@ -176,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cat = details.category || 'IAT & NEST';
             const isCustom = details.type === 'custom' || cat !== 'IAT & NEST';
             const pdfCount = isCustom ? (details.custom_pdfs ? details.custom_pdfs.length : 0) : 'Classplus Auto';
+            const vidCount = details.custom_videos ? details.custom_videos.length : 0;
 
             html += `
                 <tr>
@@ -185,7 +230,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td><code>${escapeHtml(details.course_id || 'N/A')}</code></td>
                     <td>${escapeHtml(details.course_name || '--')}</td>
-                    <td><span style="background:rgba(139,92,246,0.2); color:#c084fc; padding:2px 8px; border-radius:4px; font-size:0.85rem;">${pdfCount}</span></td>
+                    <td>
+                        <div style="display:flex; gap:4px; flex-direction:column;">
+                            <span style="background:rgba(139,92,246,0.2); color:#c084fc; padding:2px 8px; border-radius:4px; font-size:0.8rem;">📄 ${pdfCount} PDFs</span>
+                            <span style="background:rgba(236,72,153,0.2); color:#f472b6; padding:2px 8px; border-radius:4px; font-size:0.8rem;">🎥 ${vidCount} Videos</span>
+                        </div>
+                    </td>
                     <td style="text-align: center;">
                         <button class="btn btn-danger btn-delete-code" data-code="${escapeHtml(code)}">
                             🗑️ Delete

@@ -82,10 +82,10 @@
                     </div>
                 </div>
 
-                <!-- 3. Custom PDF Link Uploader (For CUET & JEE) -->
+                <!-- 3. Custom PDF Link Uploader -->
                 <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">📁 Add Custom PDF Link (CUET & JEE)</h3>
-                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add direct PDF URLs (GitHub, Google Drive direct links, Cloudflare) for CUET/JEE passcodes.</p>
+                    <h3 class="section-title">📁 Add Custom PDF Link</h3>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add direct PDF URLs (GitHub, Google Drive direct links, Cloudflare) for any passcode.</p>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="custom-pdf-code">Target Passcode</label>
@@ -109,6 +109,37 @@
 
                         <button id="btn-add-custom-pdf" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);">
                             ➕ Add PDF to Passcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. Custom Video Lecture Uploader -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">🎥 Add Custom Video Lecture</h3>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add YouTube Unlisted links, HLS (.m3u8), Bunny.net, or Video URLs for any passcode.</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="custom-vid-code">Target Passcode</label>
+                            <input type="text" id="custom-vid-code" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-title">Video Lecture Title</label>
+                            <input type="text" id="custom-vid-title" placeholder="e.g. Physics Lec 01 - Kinematics" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-folder">Chapter / Subject Name</label>
+                            <input type="text" id="custom-vid-folder" placeholder="e.g. Physics / Chapter 1" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-url">Video Stream / YouTube URL</label>
+                            <input type="text" id="custom-vid-url" placeholder="https://www.youtube.com/watch?v=... or https://..." autocomplete="off">
+                        </div>
+
+                        <button id="btn-add-custom-vid" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);">
+                            🎥 Add Video Lecture to Passcode
                         </button>
                     </div>
                 </div>
