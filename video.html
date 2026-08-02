@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Lectures Portal | SciAstra & CUET / JEE</title>
+    <link rel="stylesheet" href="student_style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="logo-icon">🎥</div>
+                <div class="brand-text">
+                    <h1>Video Lecture Portal</h1>
+                    <p>HD Secure Video Lectures & Class Recordings</p>
+                </div>
+            </div>
+
+            <!-- Portal Switcher Buttons -->
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="student.html" class="btn btn-secondary action-btn" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-weight: 600;">
+                    📄 Switch to PDF Portal
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Passcode Login Card (Shown when not logged in) -->
+            <section class="card login-card" id="login-section">
+                <!-- Exam Category Badges -->
+                <div class="category-tabs" style="display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">🧪 IAT & NEST</span>
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">📚 CUET</span>
+                    <span class="cat-pill" style="padding: 6px 14px; background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 20px; font-size: 0.85rem; font-weight: 500;">⚛️ JEE</span>
+                </div>
+
+                <div class="login-header">
+                    <div class="key-icon">🔑</div>
+                    <h2>Enter Student Access Passcode</h2>
+                    <p>Enter your assigned exam passcode to unlock your Video Lectures.</p>
+                </div>
+                <div class="login-form">
+                    <div class="form-group" style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                        <label for="student-name" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500;">Your Full Name</label>
+                        <input type="text" id="student-name" placeholder="e.g. Rahul Sharma" autocomplete="off">
+                        
+                        <label for="student-passcode" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500; margin-top: 5px;">Access Passcode</label>
+                        <div class="input-group">
+                            <input type="text" id="student-passcode" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
+                            <button id="btn-unlock" class="btn btn-primary" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);">
+                                <span class="btn-text">Unlock Videos</span>
+                                <span class="spinner hidden"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="error-msg hidden" id="login-error"></div>
+                </div>
+            </section>
+
+            <!-- Video Dashboard Section (Shown after valid passcode entry) -->
+            <section class="card dashboard-card hidden" id="dashboard-section">
+                <div class="dashboard-header">
+                    <div>
+                        <h2 id="course-title-display">🎥 Course Video Lectures</h2>
+                        <div style="display: flex; gap: 8px; margin-top: 6px; align-items: center;">
+                            <span class="access-badge" id="access-code-badge">Code: --</span>
+                            <span id="category-badge" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; font-weight: 600; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; border: 1px solid rgba(236, 72, 153, 0.4);">
+                                📚 Category: --
+                            </span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button id="btn-change-code" class="btn btn-secondary action-btn">🔑 Change Code</button>
+                        <button id="btn-logout" class="btn btn-danger action-btn" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">🚪 Logout</button>
+                    </div>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="filter-bar" style="margin-top: 16px;">
+                    <input type="text" id="video-search-input" placeholder="🔎 Search Video Lectures by title or chapter...">
+                </div>
+
+                <!-- Video Grid Container -->
+                <div id="video-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+                    <!-- Dynamically populated video cards -->
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer" style="text-align: center;">
+            <p>Student Video Lecture Streaming Portal &copy; 2026 | Fast Secure Streaming</p>
+        </footer>
+    </div>
+
+    <!-- Video Player Modal (With Dynamic Watermark & Security) -->
+    <div id="video-player-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 8, 20, 0.95); backdrop-filter: blur(12px); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <div class="modal-content" style="width: 94%; max-width: 1100px; height: 88vh; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+            <div class="modal-header" style="padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">🎥</span>
+                    <h3 id="video-modal-title" style="font-size: 1.05rem; color: #f3f4f6; font-weight: 600;">Video Lecture</h3>
+                </div>
+                <button id="btn-close-video" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 6px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    ✖ Close Video
+                </button>
+            </div>
+            <div class="modal-body" style="flex: 1; position: relative; background: #000; overflow: hidden;">
+                <!-- Floating Translucent Security Watermark -->
+                <div id="video-watermark" style="position: absolute; top: 15%; left: 20%; pointer-events: none; z-index: 999; opacity: 0.35; color: rgba(255, 255, 255, 0.7); font-size: 0.95rem; font-weight: 700; text-shadow: 1px 1px 3px rgba(0,0,0,0.9); user-select: none;">
+                    Student Watermark
+                </div>
+                <iframe id="video-iframe" src="" style="width: 100%; height: 100%; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="video_script.js"></script>
+</body>
+</html>
