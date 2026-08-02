@@ -1526,6 +1526,8 @@ def handle_admin_get_data(self):
 
 def handle_admin_save_token(self, data):
     token = data.get("token", "").strip()
+    if token.startswith("TEST_TOKEN"):
+        token = token[10:].strip()
     db = load_db()
     db["admin_token"] = token
     save_db(db)
@@ -1534,7 +1536,7 @@ def handle_admin_save_token(self, data):
     with pdf_cache_lock:
         pdf_cache.clear()
 
-    self.send_json({"success": True, "message": "Admin token saved."})
+    self.send_json({"success": True, "message": "Admin token saved successfully."})
 
 def handle_admin_create_code(self, data):
     code = data.get("code", "").strip().upper()

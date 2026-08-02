@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (data.success) {
-                if (data.admin_token) {
+                if (data.admin_token && document.activeElement !== adminTokenInput) {
                     adminTokenInput.value = data.admin_token;
                 }
                 renderPasscodesTable(data.access_codes || {});
