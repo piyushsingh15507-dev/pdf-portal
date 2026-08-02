@@ -97,7 +97,7 @@
                                 <th style="width: 50px;">#</th>
                                 <th>PDF Document Title</th>
                                 <th>Folder Location</th>
-                                <th style="width: 160px; text-align: center;">Direct Download</th>
+                                <th style="width: 260px; text-align: center;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="student-pdf-tbody">
@@ -111,6 +111,24 @@
         <footer class="app-footer" style="text-align: center;">
             <p>Student PDF Study Material Portal &copy; 2026 | Fast Direct Downloads</p>
         </footer>
+    </div>
+
+    <!-- PDF Preview Modal -->
+    <div id="pdf-preview-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 8, 20, 0.92); backdrop-filter: blur(10px); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;">
+        <div class="modal-content" style="width: 94%; max-width: 1050px; height: 88vh; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.3rem;">👁️</span>
+                    <h3 id="preview-modal-title" style="font-size: 1.05rem; color: #f3f4f6; font-weight: 600;">PDF Document Preview</h3>
+                </div>
+                <button id="btn-close-preview" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); padding: 6px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    ✖ Close Preview
+                </button>
+            </div>
+            <div class="modal-body" style="flex: 1; position: relative; background: #090d16;">
+                <iframe id="preview-iframe" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
     </div>
 </body>
 </html>

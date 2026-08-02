@@ -266,6 +266,30 @@ document.addEventListener('DOMContentLoaded', () => {
         heartbeatTimer = setInterval(sendPing, 10000);
     }
 
+    const pdfPreviewModal = document.getElementById('pdf-preview-modal');
+    const previewModalTitle = document.getElementById('preview-modal-title');
+    const previewIframe = document.getElementById('preview-iframe');
+    const btnClosePreview = document.getElementById('btn-close-preview');
+
+    function closePdfPreview() {
+        if (pdfPreviewModal) {
+            pdfPreviewModal.classList.add('hidden');
+            if (previewIframe) previewIframe.src = '';
+        }
+    }
+
+    if (btnClosePreview) {
+        btnClosePreview.addEventListener('click', closePdfPreview);
+    }
+    if (pdfPreviewModal) {
+        pdfPreviewModal.addEventListener('click', (e) => {
+            if (e.target === pdfPreviewModal) closePdfPreview();
+        });
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePdfPreview();
+    });
+
     function renderPdfTable(list) {
         if (list.length === 0) {
             pdfTbody.innerHTML = `
@@ -295,20 +319,54 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="pdf-folder-tag">${escapeHtml(folderStr)}</span>
                     </td>
                     <td style="text-align: center;">
-                        <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn btn-pdf-link" data-title="${escapeHtml(pdf.title)}">
-                            ⬇️ Direct Download
-                        </a>
+                        <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+                            <button class="btn btn-secondary action-btn btn-preview-pdf" data-title="${escapeHtml(pdf.title)}" data-url="${escapeHtml(downloadUrl)}" style="background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4); padding: 6px 12px; font-size: 0.85rem;">
+                                👁️ Preview
+                            </button>
+                            <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn btn-pdf-link" data-title="${escapeHtml(pdf.title)}" style="padding: 6px 12px; font-size: 0.85rem;">
+                                ⬇️ Download
+                            </a>
+                        </div>
                     </td>
                 </tr>`;
         });
         pdfTbody.innerHTML = html;
 
+        // Attach click listeners for PDF Preview buttons
+        document.querySelectorAll('.btn-preview-pdf').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const pdfTitle = btn.getAttribute('data-title');
+                const rawUrl = btn.getAttribute('data-url');
+                
+                // Track click in admin logs
+                const pCode = localStorage.getItem('student_passcode') || sessionStorage.getItem('student_passcode');
+                const sName = localStorage.getItem('student_name') || sessionStorage.getItem('student_name');
+                if (pCode && sName) {
+                    fetch('/api/student/click', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ passcode: pCode, name: sName, pdf_title: `[PREVIEW] ${pdfTitle}` })
+                    }).catch(() => {});
+                }
+
+                // Construct preview URL (Use Google Docs Viewer for remote PDF links if needed)
+                let viewerUrl = rawUrl;
+                if (rawUrl.includes('drive.google.com') || rawUrl.includes('classplusapp.com') || rawUrl.includes('raw.githubusercontent.com') || rawUrl.endsWith('.pdf')) {
+                    viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
+                }
+
+                if (previewModalTitle) previewModalTitle.innerText = `👁️ ${pdfTitle}`;
+                if (previewIframe) previewIframe.src = viewerUrl;
+                if (pdfPreviewModal) pdfPreviewModal.classList.remove('hidden');
+            });
+        });
+
         // Attach click listeners to track PDF downloads
         document.querySelectorAll('.btn-pdf-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 const pdfTitle = link.getAttribute('data-title');
-                const pCode = sessionStorage.getItem('student_passcode');
-                const sName = sessionStorage.getItem('student_name');
+                const pCode = localStorage.getItem('student_passcode') || sessionStorage.getItem('student_passcode');
+                const sName = localStorage.getItem('student_name') || sessionStorage.getItem('student_name');
 
                 if (pCode && sName) {
                     fetch('/api/student/click', {
