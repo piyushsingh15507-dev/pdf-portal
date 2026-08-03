@@ -306,13 +306,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPdfTable(list) {
+        if (!pdfTbody) return;
         if (list.length === 0) {
             pdfTbody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="text-align: center; padding: 40px; color: #9ca3af;">
-                        📁 No PDF materials found in this course.
-                    </td>
-                </tr>`;
+                <div style="text-align: center; padding: 40px; color: #9ca3af; background: rgba(15, 23, 42, 0.5); border-radius: 12px; border: 1px dashed rgba(255, 255, 255, 0.15);">
+                    📁 No PDF study notes found for this course.
+                </div>`;
             return;
         }
 
@@ -322,28 +321,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const downloadUrl = normalizePdfUrl(pdf.url || '#');
 
             html += `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>
-                        <div class="pdf-title-cell">
-                            <span style="font-size: 1.3rem;">📄</span>
-                            <span>${escapeHtml(pdf.title)}</span>
+                <div class="pw-item-card">
+                    <div class="pw-item-left">
+                        <div class="pw-icon-box">📄</div>
+                        <div>
+                            <div class="pw-item-title">${escapeHtml(pdf.title)}</div>
+                            <div class="pw-item-meta">
+                                <span class="pw-folder-pill">📁 ${escapeHtml(folderStr)}</span>
+                                <span style="color: #6ee7b7; background: rgba(16, 185, 129, 0.15); padding: 2px 8px; border-radius: 6px; font-weight: 500;">✓ Ready to Study</span>
+                            </div>
                         </div>
-                    </td>
-                    <td>
-                        <span class="pdf-folder-tag">${escapeHtml(folderStr)}</span>
-                    </td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
-                            <button class="btn btn-secondary action-btn btn-preview-pdf" data-title="${escapeHtml(pdf.title)}" data-url="${escapeHtml(downloadUrl)}" style="background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4); padding: 6px 12px; font-size: 0.85rem;">
-                                👁️ Preview
-                            </button>
-                            <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn btn-pdf-link" data-title="${escapeHtml(pdf.title)}" style="padding: 6px 12px; font-size: 0.85rem;">
-                                ⬇️ Download
-                            </a>
-                        </div>
-                    </td>
-                </tr>`;
+                    </div>
+                    <div class="pw-actions">
+                        <button class="btn btn-secondary action-btn btn-preview-pdf" data-title="${escapeHtml(pdf.title)}" data-url="${escapeHtml(downloadUrl)}" style="background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4); padding: 8px 14px; font-size: 0.88rem;">
+                            👁️ Preview
+                        </button>
+                        <a href="${downloadUrl}" target="_blank" download="${escapeHtml(pdf.title)}.pdf" class="btn btn-primary action-btn btn-pdf-link" data-title="${escapeHtml(pdf.title)}" style="padding: 8px 14px; font-size: 0.88rem; text-decoration: none;">
+                            ⬇️ Download
+                        </a>
+                    </div>
+                </div>`;
         });
         pdfTbody.innerHTML = html;
 
