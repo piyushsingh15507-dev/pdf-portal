@@ -52,88 +52,95 @@ document.addEventListener('DOMContentLoaded', () => {
     const customPdfUrlInput = document.getElementById('custom-pdf-url');
     const btnAddCustomPdf = document.getElementById('btn-add-custom-pdf');
 
-    btnCreateCode.addEventListener('click', async () => {
-        const code = passcodeCodeInput.value.trim().toUpperCase();
-        const courseId = passcodeCourseIdInput.value.trim();
-        const category = passcodeCategorySelect.value;
-        const access_scope = passcodeScopeSelect ? passcodeScopeSelect.value : 'all';
-        const type = (category === 'IAT & NEST') ? 'classplus' : 'custom';
-        const courseName = passcodeCourseNameInput.value.trim() || `${category} Course (${code})`;
+    if (btnCreateCode) {
+        btnCreateCode.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const code = passcodeCodeInput ? passcodeCodeInput.value.trim().toUpperCase() : '';
+            const courseId = passcodeCourseIdInput ? passcodeCourseIdInput.value.trim() : '';
+            const category = passcodeCategorySelect ? passcodeCategorySelect.value : 'IAT & NEST';
+            const access_scope = passcodeScopeSelect ? passcodeScopeSelect.value : 'all';
+            const type = (category === 'IAT & NEST') ? 'classplus' : 'custom';
+            const courseName = (passcodeCourseNameInput && passcodeCourseNameInput.value.trim()) ? passcodeCourseNameInput.value.trim() : `${category} Course (${code})`;
 
-        if (!code) {
-            alert('Please enter a Student Passcode.');
-            return;
-        }
-
-        if (type === 'classplus' && !courseId) {
-            alert('Target Classplus Course ID is required for IAT & NEST category.');
-            return;
-        }
-
-        btnCreateCode.disabled = true;
-        btnCreateCode.innerText = 'Creating...';
-
-        try {
-            const res = await fetch('/api/admin/create-code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, course_id: courseId, course_name: courseName, category, type, access_scope })
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                passcodeCodeInput.value = '';
-                passcodeCourseIdInput.value = '';
-                passcodeCourseNameInput.value = '';
-                loadAdminData();
-                alert(`Passcode '${code}' [${category} | Scope: ${access_scope.toUpperCase()}] created successfully!`);
-            } else {
-                alert(`Failed to create passcode: ${data.error}`);
+            if (!code) {
+                alert('Please enter a Custom Student Passcode.');
+                return;
             }
-        } catch (err) {
-            alert(`Error creating passcode: ${err.message}`);
-        } finally {
-            btnCreateCode.disabled = false;
-            btnCreateCode.innerText = '➕ Create Access Passcode';
-        }
-    });
 
-    btnAddCustomPdf.addEventListener('click', async () => {
-        const code = customPdfCodeInput.value.trim().toUpperCase();
-        const title = customPdfTitleInput.value.trim();
-        const folder_path = customPdfFolderInput.value.trim() || 'Main Directory';
-        const url = customPdfUrlInput.value.trim();
-
-        if (!code || !title || !url) {
-            alert('Please enter Target Passcode, Document Title, and Direct PDF URL.');
-            return;
-        }
-
-        btnAddCustomPdf.disabled = true;
-        btnAddCustomPdf.innerText = 'Adding PDF...';
-
-        try {
-            const res = await fetch('/api/admin/add-custom-pdf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, title, folder_path, url })
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                customPdfTitleInput.value = '';
-                customPdfUrlInput.value = '';
-                loadAdminData();
-                alert(`PDF '${title}' added successfully to passcode '${code}'!`);
-            } else {
-                alert(`Failed to add PDF: ${data.error}`);
+            if (type === 'classplus' && !courseId) {
+                alert('Target Classplus Course ID is required for IAT & NEST category.');
+                return;
             }
-        } catch (err) {
-            alert(`Error: ${err.message}`);
-        } finally {
-            btnAddCustomPdf.disabled = false;
-            btnAddCustomPdf.innerText = '➕ Add PDF to Passcode';
-        }
+
+            btnCreateCode.disabled = true;
+            btnCreateCode.innerText = 'Creating...';
+
+            try {
+                const res = await fetch('/api/admin/create-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, course_id: courseId, course_name: courseName, category, type, access_scope })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (passcodeCodeInput) passcodeCodeInput.value = '';
+                    if (passcodeCourseIdInput) passcodeCourseIdInput.value = '';
+                    if (passcodeCourseNameInput) passcodeCourseNameInput.value = '';
+                    loadAdminData();
+                    alert(`Passcode '${code}' created successfully!\n\nCategory: [${category}]\nScope: [${access_scope.toUpperCase()}]`);
+                } else {
+                    alert(`Failed to create passcode: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error creating passcode: ${err.message}`);
+            } finally {
+                btnCreateCode.disabled = false;
+                btnCreateCode.innerText = '➕ Create Access Passcode';
+            }
+        });
+    }
+
+    if (btnAddCustomPdf) {
+        btnAddCustomPdf.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const code = customPdfCodeInput ? customPdfCodeInput.value.trim().toUpperCase() : '';
+            const title = customPdfTitleInput ? customPdfTitleInput.value.trim() : '';
+            const folder_path = (customPdfFolderInput && customPdfFolderInput.value.trim()) ? customPdfFolderInput.value.trim() : 'Main Directory';
+            const url = customPdfUrlInput ? customPdfUrlInput.value.trim() : '';
+
+            if (!code || !title || !url) {
+                alert('Please enter Target Passcode, Document Title, and Direct PDF URL.');
+                return;
+            }
+
+            btnAddCustomPdf.disabled = true;
+            btnAddCustomPdf.innerText = 'Adding PDF...';
+
+            try {
+                const res = await fetch('/api/admin/add-custom-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, title, folder_path, url })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (customPdfTitleInput) customPdfTitleInput.value = '';
+                    if (customPdfUrlInput) customPdfUrlInput.value = '';
+                    loadAdminData();
+                    alert(`PDF '${title}' added successfully to passcode '${code}'!`);
+                } else {
+                    alert(`Failed to add PDF: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnAddCustomPdf.disabled = false;
+                btnAddCustomPdf.innerText = '➕ Add PDF to Passcode';
+            }
+        });
+    }
     const customVidCodeInput = document.getElementById('custom-vid-code');
     const customVidTitleInput = document.getElementById('custom-vid-title');
     const customVidFolderInput = document.getElementById('custom-vid-folder');
