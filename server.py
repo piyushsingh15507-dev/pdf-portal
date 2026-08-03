@@ -1675,11 +1675,16 @@ def handle_admin_save_token(self, data):
     self.send_json({"success": True, "message": "Admin token saved successfully."})
 
 def handle_admin_create_code(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+
     code = data.get("code", "").strip().upper()
     course_id = data.get("course_id", "").strip()
     category = data.get("category", "IAT & NEST").strip()
     code_type = data.get("type", "classplus").strip()
     access_scope = data.get("access_scope", "all").strip().lower()
+    course_name = data.get("course_name", "").strip()
 
     if not code:
         self.send_json({"success": False, "error": "Passcode is required."}, 400)
@@ -1695,11 +1700,16 @@ def handle_admin_create_code(self, data):
 
     existing_custom = []
     existing_videos = []
-    if code in db["access_codes"]:
-        existing_custom = db["access_codes"][code].get("custom_pdfs", [])
-        existing_videos = db["access_codes"][code].get("custom_videos", [])
+    
+    target_key = code
+    for k in list(db["access_codes"].keys()):
+        if k.strip().upper() == code:
+            target_key = k
+            existing_custom = db["access_codes"][k].get("custom_pdfs", [])
+            existing_videos = db["access_codes"][k].get("custom_videos", [])
+            break
 
-    db["access_codes"][code] = {
+    db["access_codes"][target_key] = {
         "course_id": course_id,
         "course_name": course_name or f"{category} Course ({code})",
         "category": category,
@@ -1712,14 +1722,27 @@ def handle_admin_create_code(self, data):
     self.send_json({"success": True, "message": f"Passcode {code} created."})
 
 def handle_admin_delete_code(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+
     code = data.get("code", "").strip().upper()
     db = load_db()
-    if "access_codes" in db and code in db["access_codes"]:
-        del db["access_codes"][code]
+    access_codes = db.get("access_codes", {})
+    
+    target_key = None
+    for k in list(access_codes.keys()):
+        if k.strip().upper() == code:
+            target_key = k
+            break
+
+    if target_key:
+        del access_codes[target_key]
+        db["access_codes"] = access_codes
         save_db(db)
         self.send_json({"success": True, "message": f"Passcode {code} deleted."})
     else:
-        self.send_json({"success": False, "error": "Passcode not found."}, 404)
+        self.send_json({"success": False, "error": f"Passcode '{code}' not found."}, 404)
 
 def normalize_pdf_url(url):
     if not url:
