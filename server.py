@@ -248,6 +248,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_save_sms_key(data)
         elif path == "/api/admin/save-email-gateway":
             self.handle_admin_save_email_gateway(data)
+        elif path == "/api/admin/save-telegram-gateway":
+            self.handle_admin_save_telegram_gateway(data)
         elif path == "/api/admin/save-token":
             self.handle_admin_save_token(data)
         elif path == "/api/admin/create-code":
@@ -1707,37 +1709,84 @@ def send_real_email_otp(target_email, otp_code, smtp_email=None, smtp_pass=None)
         print(f"SMTP Gateway Error: {e}")
         return False, f"SMTP delivery failed: {str(e)}"
 
+def send_real_telegram_otp(chat_id, otp_code, bot_token=None):
+    """
+    Sends instant Telegram Bot OTP notification to Telegram App.
+    """
+    if not bot_token:
+        bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not chat_id:
+        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+    if not bot_token or not chat_id:
+        return False, "Telegram Bot Token or Chat ID not configured."
+
+    try:
+        telegram_url = f"https://api.telegram.org/bot{bot_token.strip()}/sendMessage"
+        message_text = f"🔐 <b>Admin Verification Security OTP</b>\n\nYour 6-Digit OTP is: <code>{otp_code}</code>\n\n⏱️ <i>Valid for 5 minutes. Do not share this code.</i>"
+        
+        payload = json.dumps({
+            "chat_id": chat_id.strip(),
+            "text": message_text,
+            "parse_mode": "HTML"
+        }).encode('utf-8')
+
+        req = urllib.request.Request(telegram_url, data=payload, headers={
+            "Content-Type": "application/json"
+        })
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=8) as resp:
+            res_data = json.loads(resp.read().decode('utf-8'))
+            if res_data.get("ok") is True:
+                return True, "Real Telegram Bot OTP delivered to Telegram App!"
+    except Exception as e:
+        print(f"Telegram Bot Gateway Error: {e}")
+        return False, f"Telegram dispatch failed: {str(e)}"
+
+    return False, "Telegram dispatch failed."
+
 def handle_admin_request_otp(self, data):
-    target = data.get("target", "Admin Email/Phone").strip()
     otp_code = str(random.randint(100000, 999999))
     
     db = load_db()
     db["admin_otp"] = {
         "code": otp_code,
-        "expires_at": time.time() + 300,
-        "target": target
+        "expires_at": time.time() + 300
     }
     save_db(db)
     
-    smtp_email = db.get("smtp_email", "").strip()
-    smtp_pass = db.get("smtp_pass", "").strip()
-    sms_key = db.get("sms_api_key", "").strip()
+    tg_token = db.get("telegram_bot_token", "").strip()
+    tg_chat = db.get("telegram_chat_id", "").strip()
     
-    email_sent, email_msg = send_real_email_otp(target, otp_code, smtp_email, smtp_pass)
-    sms_sent, sms_msg = send_real_otp_sms(target, otp_code, sms_key)
+    tg_sent, tg_msg = send_real_telegram_otp(tg_chat, otp_code, tg_token)
     
-    print(f"\n[BACKEND OTP ENGINE] OTP for {target}: {otp_code} | Email: {email_msg} | SMS: {sms_msg}\n")
+    print(f"\n[TELEGRAM OTP DISPATCH] OTP generated: {otp_code} | Status: {tg_msg}\n")
     
-    status_text = email_msg if email_sent else (sms_msg if sms_sent else "Demo notification active")
+    if tg_sent:
+        self.send_json({
+            "success": True, 
+            "message": "📱 Security OTP dispatched to your Telegram Bot! Please check your Telegram App."
+        })
+    else:
+        # Fallback if bot is not configured yet
+        self.send_json({
+            "success": True,
+            "message": "Telegram Bot not configured yet. Configure Bot Token in Admin Panel settings.",
+            "bot_missing": True,
+            "otp_demo": otp_code
+        })
+
+def handle_admin_save_telegram_gateway(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+    bot_token = data.get("bot_token", "").strip()
+    chat_id = data.get("chat_id", "").strip()
     
-    self.send_json({
-        "success": True, 
-        "message": f"Security OTP generated for {target}!",
-        "otp": otp_code,
-        "email_sent": email_sent,
-        "sms_sent": sms_sent,
-        "status_text": status_text
-    })
+    db = load_db()
+    db["telegram_bot_token"] = bot_token
+    db["telegram_chat_id"] = chat_id
+    save_db(db)
+    self.send_json({"success": True, "message": "Telegram Bot Gateway Settings saved successfully!"})
 
 def handle_admin_auth(self, data):
     password = data.get("password", "").strip()
@@ -2274,6 +2323,7 @@ APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_save_sms_key = handle_admin_save_sms_key
 APIHandler.handle_admin_save_email_gateway = handle_admin_save_email_gateway
+APIHandler.handle_admin_save_telegram_gateway = handle_admin_save_telegram_gateway
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code

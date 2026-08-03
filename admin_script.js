@@ -288,6 +288,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const smsApiKeyInput = document.getElementById('sms-api-key');
     const btnSaveSmsKey = document.getElementById('btn-save-sms-key');
 
+    const tgBotTokenInput = document.getElementById('tg-bot-token');
+    const tgChatIdInput = document.getElementById('tg-chat-id');
+    const btnSaveTgGateway = document.getElementById('btn-save-tg-gateway');
+
+    if (btnSaveTgGateway) {
+        btnSaveTgGateway.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const botToken = tgBotTokenInput ? tgBotTokenInput.value.trim() : '';
+            const chatId = tgChatIdInput ? tgChatIdInput.value.trim() : '';
+            
+            if (!botToken || !chatId) {
+                alert('Please enter both Telegram Bot Token and Chat ID.');
+                return;
+            }
+
+            btnSaveTgGateway.disabled = true;
+            btnSaveTgGateway.innerText = 'Saving...';
+
+            try {
+                const res = await fetch('/api/admin/save-telegram-gateway', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret 
+                    },
+                    body: JSON.stringify({ bot_token: botToken, chat_id: chatId })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('Telegram Bot Gateway Settings saved successfully! Instant 6-Digit OTP notifications will now arrive in your Telegram App.');
+                } else {
+                    alert(`Failed to save Telegram settings: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnSaveTgGateway.disabled = false;
+                btnSaveTgGateway.innerText = '🤖 Save Telegram Bot Gateway Settings';
+            }
+        });
+    }
+
     const smtpEmailInput = document.getElementById('smtp-email');
     const smtpPassInput = document.getElementById('smtp-pass');
     const btnSaveEmailGateway = document.getElementById('btn-save-email-gateway');
