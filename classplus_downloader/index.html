@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classplus Dedicated Video & PDF Downloader</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-glow"></div>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-container">
+                <div class="logo-icon">⚡</div>
+                <div class="logo-text">
+                    <h1>Classplus Video & PDF Downloader</h1>
+                    <p class="subtitle">Dedicated Link & Token Auto-Decryption Tool</p>
+                </div>
+            </div>
+            <div class="server-status">
+                <span class="status-dot online"></span>
+                <span class="status-label">Port 8500 Active</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Panel: Input & Controls -->
+            <section class="card control-panel">
+                <!-- Token & Link Input Section -->
+                <div class="panel-section">
+                    <h3 class="section-title">🔑 Access Token & Stream Link</h3>
+                    <div class="form-grid">
+                        <div class="form-group span-2">
+                            <label for="auth-token">Classplus Access Token (x-access-token)</label>
+                            <input type="text" id="auth-token" placeholder="Paste your active x-access-token here..." autocomplete="off">
+                            <span class="help-text">Required for live API token authentication & key server decryption.</span>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="stream-url">Video Playlist Link / Encrypted Content ID</label>
+                            <div class="input-group">
+                                <input type="text" id="stream-url" placeholder="Paste .m3u8 link, U2FsdGVk... ID, or proxy link..." autocomplete="off">
+                                <button id="btn-fetch" class="btn btn-primary">
+                                    <span class="btn-text">Fetch Info</span>
+                                    <span class="spinner hidden"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="select-user-course">Auto-Discovered Courses</label>
+                            <div class="input-group">
+                                <select id="select-user-course" style="flex: 1; padding: 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #fff; border-radius: 8px;">
+                                    <option value="">-- Enter Access Token to auto-find courses --</option>
+                                </select>
+                                <button id="btn-load-courses" class="btn btn-secondary" style="white-space: nowrap;">Auto-Find</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="course-id">Course ID</label>
+                            <div class="input-group">
+                                <input type="text" id="course-id" placeholder="e.g. 297752" autocomplete="off">
+                                <button id="btn-explore" class="btn btn-secondary">Explore Folders</button>
+                            </div>
+                        </div>
+
+                        <!-- Batch Action Buttons -->
+                        <div class="form-group span-2" style="display: flex; gap: 10px; margin-top: 5px;">
+                            <button id="btn-export-txt" class="btn btn-secondary" style="flex: 1; background: linear-gradient(135deg, #10b981, #059669); color: white;">
+                                📄 Export Links (.txt)
+                            </button>
+                            <button id="btn-batch-download" class="btn btn-primary" style="flex: 1; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+                                ⚡ Batch Download All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stream Quality Selection -->
+                <div class="panel-section hidden" id="quality-section">
+                    <h3 class="section-title">Select Video Quality</h3>
+                    <div class="quality-selector" id="quality-list">
+                        <!-- Dynamic quality options injected here -->
+                    </div>
+                </div>
+
+                <!-- Course Explorer List -->
+                <div class="panel-section hidden" id="course-explorer-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 class="section-title" style="margin: 0;">Course Folders & Videos</h3>
+                        <button id="btn-back-folder" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;" disabled>← Back</button>
+                    </div>
+                    <span id="explorer-path" style="display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px;">Root Path: /</span>
+                    <div class="explorer-grid" id="explorer-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 250px; overflow-y: auto;">
+                    </div>
+                </div>
+
+                <!-- Download Options -->
+                <div class="panel-section">
+                    <h3 class="section-title">Download Options</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="output-name">Output File Name</label>
+                            <input type="text" id="output-name" placeholder="downloaded_video" value="Classplus_Video" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="output-format">Format</label>
+                            <div class="select-wrapper">
+                                <select id="output-format">
+                                    <option value="mp4" selected>MP4 (.mp4)</option>
+                                    <option value="mkv">MKV (.mkv)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons" style="margin-top: 15px;">
+                        <button id="btn-download" class="btn btn-success" style="width: 100%;" disabled>
+                            <span>Download & Decrypt</span>
+                        </button>
+                        <button id="btn-cancel" class="btn btn-danger hidden" style="width: 100%;">
+                            <span>Cancel Download</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Logs & Progress -->
+            <section class="card progress-panel">
+                <div class="progress-header">
+                    <h2 class="card-title">Process Monitor</h2>
+                    <span class="status-badge" id="status-badge">Idle</span>
+                </div>
+
+                <!-- Progress Ring -->
+                <div class="progress-container">
+                    <div class="circular-progress">
+                        <svg class="progress-ring" width="160" height="160">
+                            <circle class="progress-ring-bg" stroke="#1e293b" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
+                            <circle class="progress-ring-bar" stroke="url(#progress-gradient)" stroke-width="8" stroke-dasharray="439.82" stroke-dashoffset="439.82" stroke-linecap="round" fill="transparent" r="70" cx="80" cy="80" />
+                            <defs>
+                                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#10b981" />
+                                    <stop offset="100%" stop-color="#8b5cf6" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="progress-ring-text">
+                            <span class="percentage" id="progress-percentage">0%</span>
+                            <span class="status-text" id="progress-status">Ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terminal Logs -->
+                <div class="logs-container">
+                    <div class="logs-header">
+                        <span>Terminal Output</span>
+                        <button id="btn-copy-logs" class="btn-text-action">Copy Logs</button>
+                    </div>
+                    <div class="console" id="console-logs">
+                        <div class="console-line system">[SYSTEM] Ready. Enter Access Token and Link or Content ID above to begin.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
