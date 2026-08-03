@@ -244,6 +244,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_auth(data)
         elif path == "/api/admin/change-secret":
             self.handle_admin_change_secret(data)
+        elif path == "/api/admin/save-sms-key":
+            self.handle_admin_save_sms_key(data)
         elif path == "/api/admin/save-token":
             self.handle_admin_save_token(data)
         elif path == "/api/admin/create-code":
@@ -1616,8 +1618,45 @@ def verify_admin_auth(handler, data=None):
         return True
     return False
 
+def send_real_otp_sms(target_phone, otp_code, api_key=None):
+    """
+    Sends real SMS OTP to Indian/Global Mobile numbers using Fast2SMS / Twilio API.
+    Classplus & PW style SMS Gateway.
+    """
+    if not api_key:
+        api_key = os.environ.get("SMS_API_KEY", "")
+        
+    cleaned_phone = re.sub(r'[^\d]', '', target_phone)
+    if len(cleaned_phone) > 10:
+        cleaned_phone = cleaned_phone[-10:]
+        
+    if not api_key or len(cleaned_phone) < 10:
+        return False, "No SMS Gateway Key configured or invalid phone number."
+
+    try:
+        url = "https://www.fast2sms.com/dev/bulkV2"
+        payload = urllib.parse.urlencode({
+            'authorization': api_key,
+            'variables_values': otp_code,
+            'route': 'otp',
+            'numbers': cleaned_phone
+        }).encode('utf-8')
+        
+        req = urllib.request.Request(url, data=payload, headers={
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'Mozilla/5.0'
+        })
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=8) as resp:
+            res_data = json.loads(resp.read().decode('utf-8'))
+            if res_data.get("return") is True:
+                return True, f"Real SMS OTP delivered to +91-{cleaned_phone}"
+    except Exception as e:
+        print(f"SMS Gateway Exception: {e}")
+        
+    return False, "SMS Gateway dispatch failed."
+
 def handle_admin_request_otp(self, data):
-    target = data.get("target", "Admin Email/Phone").strip()
+    target = data.get("target", "Admin Phone/Email").strip()
     otp_code = str(random.randint(100000, 999999))
     
     db = load_db()
@@ -1628,11 +1667,16 @@ def handle_admin_request_otp(self, data):
     }
     save_db(db)
     
-    print(f"\n[SECURITY OTP] 6-Digit Admin OTP generated for {target}: {otp_code}\n")
+    sms_key = db.get("sms_api_key", "").strip()
+    sms_sent, sms_msg = send_real_otp_sms(target, otp_code, sms_key)
+    
+    print(f"\n[BACKEND OTP ENGINE] 6-Digit OTP generated for {target}: {otp_code} | SMS: {sms_msg}\n")
+    
     self.send_json({
         "success": True, 
         "message": f"Security OTP generated for {target}!",
-        "otp": otp_code
+        "otp": otp_code,
+        "sms_status": sms_msg
     })
 
 def handle_admin_auth(self, data):
@@ -1678,6 +1722,16 @@ def handle_admin_change_secret(self, data):
     db["admin_secret_key"] = new_secret
     save_db(db)
     self.send_json({"success": True, "message": "Admin Password updated successfully!"})
+
+def handle_admin_save_sms_key(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+    sms_key = data.get("sms_key", "").strip()
+    db = load_db()
+    db["sms_api_key"] = sms_key
+    save_db(db)
+    self.send_json({"success": True, "message": "SMS Gateway API Key saved successfully!"})
 
 def handle_admin_get_data(self):
     headers_secret = self.headers.get("X-Admin-Secret", "")
@@ -2145,6 +2199,7 @@ def handle_student_click(self, data):
 APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret
+APIHandler.handle_admin_save_sms_key = handle_admin_save_sms_key
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code

@@ -285,6 +285,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const smsApiKeyInput = document.getElementById('sms-api-key');
+    const btnSaveSmsKey = document.getElementById('btn-save-sms-key');
+
+    if (btnSaveSmsKey) {
+        btnSaveSmsKey.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const smsKey = smsApiKeyInput ? smsApiKeyInput.value.trim() : '';
+            btnSaveSmsKey.disabled = true;
+            btnSaveSmsKey.innerText = 'Saving...';
+
+            try {
+                const res = await fetch('/api/admin/save-sms-key', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret 
+                    },
+                    body: JSON.stringify({ sms_key: smsKey })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('SMS Gateway API Key saved successfully! Real SMS OTPs will now be dispatched to mobile numbers.');
+                } else {
+                    alert(`Failed to save SMS key: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnSaveSmsKey.disabled = false;
+                btnSaveSmsKey.innerText = '📱 Save SMS Gateway Key';
+            }
+        });
+    }
+
     if (btnChangeAdminSecret) {
         btnChangeAdminSecret.addEventListener('click', async (e) => {
             if (e) e.preventDefault();
