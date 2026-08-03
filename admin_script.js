@@ -288,6 +288,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const smsApiKeyInput = document.getElementById('sms-api-key');
     const btnSaveSmsKey = document.getElementById('btn-save-sms-key');
 
+    const smtpEmailInput = document.getElementById('smtp-email');
+    const smtpPassInput = document.getElementById('smtp-pass');
+    const btnSaveEmailGateway = document.getElementById('btn-save-email-gateway');
+
+    if (btnSaveEmailGateway) {
+        btnSaveEmailGateway.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const smtpEmail = smtpEmailInput ? smtpEmailInput.value.trim() : '';
+            const smtpPass = smtpPassInput ? smtpPassInput.value.trim() : '';
+            
+            if (!smtpEmail || !smtpPass) {
+                alert('Please enter both your Sender Gmail Address and Gmail App Password.');
+                return;
+            }
+
+            btnSaveEmailGateway.disabled = true;
+            btnSaveEmailGateway.innerText = 'Saving...';
+
+            try {
+                const res = await fetch('/api/admin/save-email-gateway', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret 
+                    },
+                    body: JSON.stringify({ smtp_email: smtpEmail, smtp_pass: smtpPass })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('Gmail / Email Gateway Settings saved successfully! Real OTP emails will now be sent directly to your Gmail inbox.');
+                } else {
+                    alert(`Failed to save Email Gateway: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnSaveEmailGateway.disabled = false;
+                btnSaveEmailGateway.innerText = '📧 Save Email Gateway Settings';
+            }
+        });
+    }
+
     if (btnSaveSmsKey) {
         btnSaveSmsKey.addEventListener('click', async (e) => {
             if (e) e.preventDefault();

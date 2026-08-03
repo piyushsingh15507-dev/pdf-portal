@@ -246,6 +246,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_change_secret(data)
         elif path == "/api/admin/save-sms-key":
             self.handle_admin_save_sms_key(data)
+        elif path == "/api/admin/save-email-gateway":
+            self.handle_admin_save_email_gateway(data)
         elif path == "/api/admin/save-token":
             self.handle_admin_save_token(data)
         elif path == "/api/admin/create-code":
@@ -1655,8 +1657,58 @@ def send_real_otp_sms(target_phone, otp_code, api_key=None):
         
     return False, "SMS Gateway dispatch failed."
 
+def send_real_email_otp(target_email, otp_code, smtp_email=None, smtp_pass=None):
+    """
+    Sends real HTML OTP Email to target_email via Gmail / SMTP server.
+    """
+    if not smtp_email:
+        smtp_email = os.environ.get("SMTP_EMAIL", "")
+    if not smtp_pass:
+        smtp_pass = os.environ.get("SMTP_PASSWORD", "")
+        
+    if not smtp_email or not smtp_pass:
+        return False, "SMTP Email settings not configured."
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"🔐 Your Admin Verification Security OTP: {otp_code}"
+        msg["From"] = f"Portal Security <{smtp_email}>"
+        msg["To"] = target_email
+
+        html_body = f"""
+        <div style="font-family: 'Segoe UI', Helvetica, Arial, sans-serif; background-color: #070a12; color: #f3f4f6; padding: 30px; border-radius: 12px; max-width: 500px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 40px;">🛡️</div>
+                <h2 style="color: #ffffff; margin: 8px 0;">Admin Security Verification</h2>
+                <p style="color: #94a3b8; font-size: 14px;">Use the 6-digit OTP below to log in to your Admin Control Panel.</p>
+            </div>
+            <div style="background: rgba(139, 92, 246, 0.15); border: 2px dashed #8b5cf6; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0;">
+                <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #a78bfa; font-family: monospace;">{otp_code}</span>
+            </div>
+            <p style="font-size: 13px; color: #94a3b8; text-align: center;">⏱️ This OTP is valid for <strong>5 minutes</strong>. Do not share this code with anyone.</p>
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 11px; color: #64748b; text-align: center;">
+                Classplus Security Portal &copy; 2026
+            </div>
+        </div>
+        """
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls(context=SSL_CTX)
+            server.login(smtp_email, smtp_pass)
+            server.sendmail(smtp_email, target_email, msg.as_string())
+            
+        return True, f"Real Email OTP delivered to {target_email}"
+    except Exception as e:
+        print(f"SMTP Gateway Error: {e}")
+        return False, f"SMTP delivery failed: {str(e)}"
+
 def handle_admin_request_otp(self, data):
-    target = data.get("target", "Admin Phone/Email").strip()
+    target = data.get("target", "Admin Email/Phone").strip()
     otp_code = str(random.randint(100000, 999999))
     
     db = load_db()
@@ -1667,16 +1719,24 @@ def handle_admin_request_otp(self, data):
     }
     save_db(db)
     
+    smtp_email = db.get("smtp_email", "").strip()
+    smtp_pass = db.get("smtp_pass", "").strip()
     sms_key = db.get("sms_api_key", "").strip()
+    
+    email_sent, email_msg = send_real_email_otp(target, otp_code, smtp_email, smtp_pass)
     sms_sent, sms_msg = send_real_otp_sms(target, otp_code, sms_key)
     
-    print(f"\n[BACKEND OTP ENGINE] 6-Digit OTP generated for {target}: {otp_code} | SMS: {sms_msg}\n")
+    print(f"\n[BACKEND OTP ENGINE] OTP for {target}: {otp_code} | Email: {email_msg} | SMS: {sms_msg}\n")
+    
+    status_text = email_msg if email_sent else (sms_msg if sms_sent else "Demo notification active")
     
     self.send_json({
         "success": True, 
         "message": f"Security OTP generated for {target}!",
         "otp": otp_code,
-        "sms_status": sms_msg
+        "email_sent": email_sent,
+        "sms_sent": sms_sent,
+        "status_text": status_text
     })
 
 def handle_admin_auth(self, data):
@@ -1732,6 +1792,19 @@ def handle_admin_save_sms_key(self, data):
     db["sms_api_key"] = sms_key
     save_db(db)
     self.send_json({"success": True, "message": "SMS Gateway API Key saved successfully!"})
+
+def handle_admin_save_email_gateway(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+    smtp_email = data.get("smtp_email", "").strip()
+    smtp_pass = data.get("smtp_pass", "").strip()
+    
+    db = load_db()
+    db["smtp_email"] = smtp_email
+    db["smtp_pass"] = smtp_pass
+    save_db(db)
+    self.send_json({"success": True, "message": "Gmail / Email Gateway Settings saved successfully!"})
 
 def handle_admin_get_data(self):
     headers_secret = self.headers.get("X-Admin-Secret", "")
@@ -2200,6 +2273,7 @@ APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_save_sms_key = handle_admin_save_sms_key
+APIHandler.handle_admin_save_email_gateway = handle_admin_save_email_gateway
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
