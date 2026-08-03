@@ -190,12 +190,18 @@
                     const data = await res.json();
 
                     if (data.success) {
-                        if (data.otp) {
-                            otpInput.value = data.otp;
-                            otpDemoBanner.innerText = `📩 Security OTP generated: ${data.otp} (Valid for 5 mins)`;
+                        if (data.sms_status && data.sms_status.includes('delivered')) {
+                            otpDemoBanner.innerText = `📱 ${data.sms_status}`;
                             otpDemoBanner.classList.remove('hidden');
+                            alert(`📱 Real Mobile SMS OTP Dispatched!\n\nPlease check your mobile SMS inbox.`);
+                        } else {
+                            if (data.otp) {
+                                otpInput.value = data.otp;
+                                otpDemoBanner.innerText = `📩 Security OTP generated: ${data.otp} (Configure Fast2SMS API Key in Admin Panel for direct mobile SMS)`;
+                                otpDemoBanner.classList.remove('hidden');
+                            }
+                            alert(`Security OTP generated: [ ${data.otp} ]\n\nTo receive real SMS on your mobile phone, paste your Fast2SMS / Twilio API Key in Admin Panel -> Real SMS OTP Gateway.`);
                         }
-                        alert(`Security OTP sent successfully!\n\nYour 6-Digit OTP is: [ ${data.otp} ]`);
                     } else {
                         showError(data.error || 'Failed to generate OTP.');
                     }
