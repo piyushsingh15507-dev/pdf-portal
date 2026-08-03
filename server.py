@@ -186,6 +186,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_script.js"), "application/javascript")
         elif path == "/api/admin/get-data":
             self.handle_admin_get_data()
+        elif path in ["/api/ping", "/ping"]:
+            self.send_json({"status": "online", "message": "Server is 24/7 active and warm!", "timestamp": time.time()})
         elif path == "/api/status":
             self.handle_api_status()
         elif path == "/api/batch-status":
@@ -2035,8 +2037,24 @@ APIHandler.handle_student_access = handle_student_access
 APIHandler.handle_student_heartbeat = handle_student_heartbeat
 APIHandler.handle_student_click = handle_student_click
 
+def keep_server_awake():
+    """Background thread to keep Render server warm 24/7."""
+    def _ping():
+        time.sleep(15)
+        while True:
+            try:
+                req = urllib.request.Request("https://pdf-portal-7lbw.onrender.com/api/ping", headers={'User-Agent': 'KeepAlive/1.0'})
+                with urllib.request.urlopen(req, context=SSL_CTX, timeout=10) as resp:
+                    pass
+            except Exception:
+                pass
+            time.sleep(300)
+
+    threading.Thread(target=_ping, daemon=True).start()
+
 def run_server():
     # Multi-Threaded HTTP Server: Spawns independent threads for 100+ concurrent students
+    keep_server_awake()
     try:
         server = ThreadingHTTPServer(('', PORT), APIHandler)
     except Exception:
