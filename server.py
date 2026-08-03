@@ -8,6 +8,7 @@ import subprocess
 import urllib.request
 import urllib.parse
 import base64
+import random
 import ssl
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -237,6 +238,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_export_pdf_links(data)
         elif path == "/api/pdf/batch-download":
             self.handle_pdf_batch_download(data)
+        elif path == "/api/admin/request-otp":
+            self.handle_admin_request_otp(data)
         elif path == "/api/admin/auth":
             self.handle_admin_auth(data)
         elif path == "/api/admin/change-secret":
@@ -1613,15 +1616,54 @@ def verify_admin_auth(handler, data=None):
         return True
     return False
 
+def handle_admin_request_otp(self, data):
+    target = data.get("target", "Admin Email/Phone").strip()
+    otp_code = str(random.randint(100000, 999999))
+    
+    db = load_db()
+    db["admin_otp"] = {
+        "code": otp_code,
+        "expires_at": time.time() + 300,
+        "target": target
+    }
+    save_db(db)
+    
+    print(f"\n[SECURITY OTP] 6-Digit Admin OTP generated for {target}: {otp_code}\n")
+    self.send_json({
+        "success": True, 
+        "message": f"Security OTP generated for {target}!",
+        "otp": otp_code
+    })
+
 def handle_admin_auth(self, data):
     password = data.get("password", "").strip()
+    otp = data.get("otp", "").strip()
+    
     db = load_db()
     master_secret = db.get("admin_secret_key") or "ADMIN123"
 
-    if password == master_secret:
-        self.send_json({"success": True, "message": "Admin authenticated successfully.", "secret": master_secret})
-    else:
-        self.send_json({"success": False, "error": "Invalid Admin Password or Secret Key."}, 401)
+    # Option 1: Master Password Authentication
+    if password and password == master_secret:
+        self.send_json({"success": True, "message": "Admin authenticated via Password.", "secret": master_secret})
+        return
+
+    # Option 2: 6-Digit OTP Authentication
+    otp_data = db.get("admin_otp", {})
+    if otp and isinstance(otp_data, dict):
+        saved_code = otp_data.get("code", "")
+        expires_at = otp_data.get("expires_at", 0)
+        
+        if time.time() > expires_at:
+            self.send_json({"success": False, "error": "Security OTP has expired. Please request a new OTP."}, 401)
+            return
+            
+        if otp == saved_code:
+            db["admin_otp"] = {} # Clear used OTP
+            save_db(db)
+            self.send_json({"success": True, "message": "Admin authenticated via Security OTP.", "secret": master_secret})
+            return
+
+    self.send_json({"success": False, "error": "Invalid Admin Master Password or Security OTP."}, 401)
 
 def handle_admin_change_secret(self, data):
     if not verify_admin_auth(self, data):
@@ -2100,6 +2142,7 @@ def handle_student_click(self, data):
     save_db(db)
     self.send_json({"success": True})
 
+APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_get_data = handle_admin_get_data
