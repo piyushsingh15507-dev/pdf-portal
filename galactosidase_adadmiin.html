@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secret Admin Control Panel</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin_style.css">
+    <script src="admin_script.js" defer></script>
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Admin Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">⚙️</div>
+                <div>
+                    <h1>Secret Admin Control Panel</h1>
+                    <p class="tagline">Manage Tokens, Passcodes & Live Student Sessions</p>
+                </div>
+            </div>
+            <div class="nav-links" style="display: flex; gap: 10px; align-items: center;">
+                <a href="/student.html" target="_blank" class="nav-btn">🎓 Open Student Portal</a>
+                <button id="btn-lock-admin" class="nav-btn" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer;">
+                    🔒 Logout Admin
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Admin Dashboard Content -->
+        <main class="main-content" id="admin-dashboard-section">
+            <!-- Left Side: Config & Passcode Creator -->
+            <section class="card control-card">
+                <!-- 1. Admin Token Configuration -->
+                <div class="panel-section">
+                    <h3 class="section-title">🔑 Global Classplus Access Token</h3>
+                    <div class="form-group">
+                        <label for="admin-token">Classplus Access Token (x-access-token)</label>
+                        <input type="text" id="admin-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
+                        <span class="help-text" style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px; display: block;">Stored securely on server to auto-scan Classplus PDFs.</span>
+                    </div>
+                    <button id="btn-save-token" type="button" class="btn btn-primary" style="margin-top: 10px;">
+                        💾 Save Admin Token
+                    </button>
+                </div>
+
+                <!-- 2. Student Passcode Generator -->
+                <div class="panel-section" style="margin-top: 20px;">
+                    <h3 class="section-title">✨ Generate Student Access Passcode</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="passcode-category">Exam Category</label>
+                            <select id="passcode-category" style="width: 100%; padding: 12px; background: rgba(5, 8, 20, 0.7); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #f3f4f6; font-family: inherit;">
+                                <option value="IAT & NEST">🧪 IAT & NEST (Classplus Course)</option>
+                                <option value="CUET">📚 CUET (Custom PDFs & Direct Links)</option>
+                                <option value="JEE">⚛️ JEE (Custom PDFs & Direct Links)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="passcode-code">Custom Student Passcode</label>
+                            <input type="text" id="passcode-code" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group" id="course-id-group">
+                            <label for="passcode-course-id">Target Classplus Course ID (For IAT & NEST)</label>
+                            <input type="text" id="passcode-course-id" placeholder="e.g. 297752 (Leave blank for CUET/JEE)" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="passcode-scope">Access Permission Scope</label>
+                            <select id="passcode-scope" style="width: 100%; padding: 12px; background: rgba(5, 8, 20, 0.7); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #f3f4f6; font-family: inherit;">
+                                <option value="all">🌟 All Access (PDFs + Video Lectures)</option>
+                                <option value="pdf">📄 PDF Study Materials Only</option>
+                                <option value="video">🎥 Video Lectures Only</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="passcode-course-name">Course / Batch Name (Display Label)</label>
+                            <input type="text" id="passcode-course-name" placeholder="e.g. SciAstra Physics 2026 / CUET Mock Series" autocomplete="off">
+                        </div>
+
+                        <button id="btn-create-code" type="button" class="btn btn-secondary export-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; margin-top: 8px;">
+                            ➕ Create Access Passcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Custom PDF Link Uploader -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">📁 Add Custom PDF Link</h3>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add direct PDF URLs (GitHub, Google Drive direct links, Cloudflare) for any passcode.</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="custom-pdf-code">Target Passcode</label>
+                            <input type="text" id="custom-pdf-code" placeholder="e.g. CUET-101 or JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-title">PDF Document Title</label>
+                            <input type="text" id="custom-pdf-title" placeholder="e.g. CUET Chemistry Chapter 1 Notes" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-folder">Folder Name (Optional)</label>
+                            <input type="text" id="custom-pdf-folder" placeholder="e.g. Chemistry Notes / Mock Tests" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-pdf-url">Direct PDF URL</label>
+                            <input type="text" id="custom-pdf-url" placeholder="https://raw.githubusercontent.com/... or https://drive.google.com/..." autocomplete="off">
+                        </div>
+
+                        <button id="btn-add-custom-pdf" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white;">
+                            ➕ Add PDF to Passcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. Custom Video Lecture Uploader -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">🎥 Add Custom Video Lecture</h3>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add YouTube Unlisted links, HLS (.m3u8), Bunny.net, or Video URLs for any passcode.</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="custom-vid-code">Target Passcode</label>
+                            <input type="text" id="custom-vid-code" placeholder="e.g. SCI-2026, CUET-101, JEE-2026" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-title">Video Lecture Title</label>
+                            <input type="text" id="custom-vid-title" placeholder="e.g. Physics Lec 01 - Kinematics" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-folder">Chapter / Subject Name</label>
+                            <input type="text" id="custom-vid-folder" placeholder="e.g. Physics / Chapter 1" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-vid-url">Video Stream / YouTube URL</label>
+                            <input type="text" id="custom-vid-url" placeholder="https://www.youtube.com/watch?v=... or https://..." autocomplete="off">
+                        </div>
+
+                        <button id="btn-add-custom-vid" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); color: white;">
+                            🎥 Add Video Lecture to Passcode
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5. Change Admin Secret Password -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">🔒 Change Admin Master Password</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="new-admin-secret">New Admin Master Password</label>
+                            <input type="password" id="new-admin-secret" placeholder="Enter new secret password..." autocomplete="off">
+                        </div>
+                        <button id="btn-change-admin-secret" type="button" class="btn btn-danger export-btn">
+                            🔒 Update Admin Password
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side: Active Passcodes & Live Student Monitor -->
+            <section class="card results-card">
+                <!-- Active Passcodes Table -->
+                <div class="results-header">
+                    <h2>Active Student Passcodes</h2>
+                    <span class="stats-badge" id="passcode-count-badge">0 Active Codes</span>
+                </div>
+
+                <div class="passcode-table-container">
+                    <table class="passcode-table">
+                        <thead>
+                            <tr>
+                                <th>Passcode</th>
+                                <th>Course ID</th>
+                                <th>Course Name / Batch</th>
+                                <th>Sources</th>
+                                <th style="width: 80px; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passcodes-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Live Active Students & Force Logout -->
+                <div class="results-header" style="margin-top: 28px;">
+                    <h2>👥 Live Active Student Sessions</h2>
+                    <span class="stats-badge" id="student-count-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3);">0 Online</span>
+                </div>
+
+                <div class="student-table-container">
+                    <table class="student-table">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Used Passcode</th>
+                                <th>IP Address</th>
+                                <th>Last Active</th>
+                                <th>PDFs Opened</th>
+                                <th style="width: 140px; text-align: center;">Security Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Classplus Secret Admin Portal &copy; 2026 | Protected Control</p>
+        </footer>
+    </div>
+</body>
+</html>

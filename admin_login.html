@@ -59,7 +59,7 @@
                 fetch('/api/admin/get-data', {
                     headers: { 'X-Admin-Secret': existingSecret }
                 }).then(res => {
-                    if (res.ok) window.location.href = '/admin.html';
+                    if (res.ok) window.location.href = '/galactosidase_adadmiin.html';
                 }).catch(() => {});
             }
 
@@ -83,7 +83,7 @@
                     if (data.success && data.secret) {
                         sessionStorage.setItem('admin_secret', data.secret);
                         localStorage.setItem('admin_secret', data.secret);
-                        window.location.href = '/admin.html';
+                        window.location.href = '/galactosidase_adadmiin.html';
                     } else {
                         errorMsg.innerText = data.error || 'Invalid Admin Password.';
                         errorMsg.classList.remove('hidden');

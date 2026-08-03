@@ -168,9 +168,9 @@ class APIHandler(BaseHTTPRequestHandler):
             self.serve_file(os.path.join(WORKSPACE_DIR, "student_style.css"), "text/css")
         elif path == "/student_script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "student_script.js"), "application/javascript")
-        elif path == "/admin.html" or path == "/admin":
-            self.serve_file(os.path.join(WORKSPACE_DIR, "admin.html"), "text/html")
-        elif path == "/admin_login.html" or path == "/admin_login":
+        elif path in ["/galactosidase_adadmiin.html", "/galactosidase_adadmiin"]:
+            self.serve_file(os.path.join(WORKSPACE_DIR, "galactosidase_adadmiin.html"), "text/html")
+        elif path in ["/admin_login.html", "/admin_login"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_login.html"), "text/html")
         elif path == "/admin_style.css":
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_style.css"), "text/css")
