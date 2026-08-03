@@ -17,7 +17,7 @@ try:
 except ImportError:
     AES = None
 
-PORT = 8000
+PORT = int(os.environ.get("PORT", 8000))
 WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
 N_M3U8DL_PATH = os.path.join(WORKSPACE_DIR, "N_m3u8DL-RE.exe")
 FFMPEG_PATH = os.path.join(WORKSPACE_DIR, "ffmpeg.exe")
@@ -151,6 +151,12 @@ class APIHandler(BaseHTTPRequestHandler):
                          (self.address_string(),
                           self.log_date_time_string(),
                           format%args))
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
 
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
