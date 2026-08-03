@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal Security Login</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin_style.css">
+</head>
+<body>
+    <div class="background-decorations">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="app-container" style="justify-content: center; align-items: center;">
+        <!-- Standalone Admin Login Card -->
+        <section class="card login-card" style="max-width: 460px; width: 100%; text-align: center; margin: 40px auto; padding: 36px 28px;">
+            <div class="login-header">
+                <div class="key-icon" style="font-size: 3.2rem; margin-bottom: 12px;">🛡️</div>
+                <h2 style="font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Admin Portal Login</h2>
+                <p style="font-size: 0.88rem; color: #94a3b8; margin-bottom: 24px;">Enter your Admin Master Password to access the Portal Control Panel.</p>
+            </div>
+            
+            <form id="admin-login-form" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group" style="text-align: left;">
+                    <label for="login-admin-pass" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">Admin Master Password / Key</label>
+                    <input type="password" id="login-admin-pass" placeholder="Enter Admin Secret Password..." autocomplete="off" required style="padding: 14px; font-size: 1rem;">
+                </div>
+                
+                <button id="btn-submit-login" type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); padding: 14px; font-size: 1rem; font-weight: 600; min-height: 48px;">
+                    🔓 Authenticate & Open Dashboard
+                </button>
+
+                <div class="error-msg hidden" id="login-error-msg" style="margin-top: 10px;"></div>
+            </form>
+
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+                <a href="/student.html" style="color: #94a3b8; font-size: 0.85rem; text-decoration: none; font-weight: 500;">
+                    🎓 Go to Student Portal →
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('admin-login-form');
+            const passInput = document.getElementById('login-admin-pass');
+            const btnSubmit = document.getElementById('btn-submit-login');
+            const errorMsg = document.getElementById('login-error-msg');
+
+            // Check if already authenticated
+            const existingSecret = sessionStorage.getItem('admin_secret') || localStorage.getItem('admin_secret');
+            if (existingSecret) {
+                fetch('/api/admin/get-data', {
+                    headers: { 'X-Admin-Secret': existingSecret }
+                }).then(res => {
+                    if (res.ok) window.location.href = '/admin.html';
+                }).catch(() => {});
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = passInput.value.trim();
+                if (!password) return;
+
+                btnSubmit.disabled = true;
+                btnSubmit.innerText = 'Verifying...';
+                errorMsg.classList.add('hidden');
+
+                try {
+                    const res = await fetch('/api/admin/auth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    const data = await res.json();
+
+                    if (data.success && data.secret) {
+                        sessionStorage.setItem('admin_secret', data.secret);
+                        localStorage.setItem('admin_secret', data.secret);
+                        window.location.href = '/admin.html';
+                    } else {
+                        errorMsg.innerText = data.error || 'Invalid Admin Password.';
+                        errorMsg.classList.remove('hidden');
+                    }
+                } catch (err) {
+                    errorMsg.innerText = `Network error: ${err.message}`;
+                    errorMsg.classList.remove('hidden');
+                } finally {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerText = '🔓 Authenticate & Open Dashboard';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

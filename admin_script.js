@@ -38,82 +38,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentAdminSecret = sessionStorage.getItem('admin_secret') || localStorage.getItem('admin_secret') || '';
 
-    // Check existing auth on load
-    if (currentAdminSecret) {
-        verifyAndLoadAdmin(currentAdminSecret);
+    if (!currentAdminSecret) {
+        window.location.href = '/admin_login.html';
+        return;
     }
 
-    if (btnAdminAuth) {
-        btnAdminAuth.addEventListener('click', async () => {
-            const pass = adminAuthPassInput ? adminAuthPassInput.value.trim() : '';
-            if (!pass) {
-                showAuthError('Please enter the Admin Master Password.');
-                return;
-            }
-
-            btnAdminAuth.disabled = true;
-            btnAdminAuth.innerText = 'Verifying...';
-            hideAuthError();
-
-            try {
-                const res = await fetch('/api/admin/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: pass })
-                });
-                const data = await res.json();
-
-                if (data.success && data.secret) {
-                    currentAdminSecret = data.secret;
-                    sessionStorage.setItem('admin_secret', currentAdminSecret);
-                    localStorage.setItem('admin_secret', currentAdminSecret);
-                    showDashboard();
-                    loadAdminData();
-                } else {
-                    showAuthError(data.error || 'Invalid Admin Secret Password.');
-                }
-            } catch (err) {
-                showAuthError(`Network error: ${err.message}`);
-            } finally {
-                btnAdminAuth.disabled = false;
-                btnAdminAuth.innerText = '🔓 Unlock Admin Dashboard';
-            }
-        });
-    }
+    verifyAndLoadAdmin(currentAdminSecret);
 
     if (btnLockAdmin) {
         btnLockAdmin.addEventListener('click', () => {
             currentAdminSecret = '';
             sessionStorage.removeItem('admin_secret');
             localStorage.removeItem('admin_secret');
-            hideDashboard();
+            window.location.href = '/admin_login.html';
         });
     }
 
-    function showAuthError(msg) {
-        if (adminAuthError) {
-            adminAuthError.innerText = msg;
-            adminAuthError.classList.remove('hidden');
-        }
-    }
-
-    function hideAuthError() {
-        if (adminAuthError) {
-            adminAuthError.classList.add('hidden');
-        }
-    }
-
-    function showDashboard() {
-        if (adminLoginSection) adminLoginSection.classList.add('hidden');
-        if (adminDashboardSection) adminDashboardSection.classList.remove('hidden');
-        if (btnLockAdmin) btnLockAdmin.classList.remove('hidden');
-    }
-
     function hideDashboard() {
-        if (adminLoginSection) adminLoginSection.classList.remove('hidden');
-        if (adminDashboardSection) adminDashboardSection.classList.add('hidden');
-        if (btnLockAdmin) btnLockAdmin.classList.add('hidden');
-        if (adminAuthPassInput) adminAuthPassInput.value = '';
+        sessionStorage.removeItem('admin_secret');
+        localStorage.removeItem('admin_secret');
+        window.location.href = '/admin_login.html';
     }
 
     async function verifyAndLoadAdmin(secret) {
@@ -124,7 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
-                    showDashboard();
                     renderPasscodesTable(data.access_codes || {});
                     renderStudentsTable(data.student_sessions || [], data.blocked_ips || []);
                     if (adminTokenInput && data.admin_token && document.activeElement !== adminTokenInput) {

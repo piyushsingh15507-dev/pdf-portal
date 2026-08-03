@@ -29,33 +29,14 @@
             </div>
             <div class="nav-links" style="display: flex; gap: 10px; align-items: center;">
                 <a href="/student.html" target="_blank" class="nav-btn">🎓 Open Student Portal</a>
-                <button id="btn-lock-admin" class="nav-btn hidden" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer;">
-                    🔒 Lock Admin Panel
+                <button id="btn-lock-admin" class="nav-btn" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer;">
+                    🔒 Logout Admin
                 </button>
             </div>
         </header>
 
-        <!-- Admin Authentication Lock Screen (Shown by default) -->
-        <section class="card login-card" id="admin-login-section" style="max-width: 480px; margin: 40px auto; text-align: center;">
-            <div class="login-header">
-                <div class="key-icon" style="font-size: 3rem; margin-bottom: 12px;">🛡️</div>
-                <h2 style="font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Admin Security Authentication</h2>
-                <p style="font-size: 0.88rem; color: #94a3b8; margin-bottom: 20px;">Enter your Admin Secret Password / PIN to access the dashboard controls.</p>
-            </div>
-            <div class="login-form">
-                <div class="form-group" style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
-                    <label for="admin-auth-pass" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500;">Admin Master Password / Key</label>
-                    <input type="password" id="admin-auth-pass" placeholder="Enter Admin Secret Password..." autocomplete="off">
-                    <button id="btn-admin-auth" type="button" class="btn btn-primary" style="margin-top: 8px; width: 100%; background: linear-gradient(135deg, #8b5cf6, #3b82f6); padding: 13px; font-weight: 600;">
-                        🔓 Unlock Admin Dashboard
-                    </button>
-                </div>
-                <div class="error-msg hidden" id="admin-auth-error" style="margin-top: 12px;"></div>
-            </div>
-        </section>
-
-        <!-- Main Admin Dashboard Content (Hidden until authenticated) -->
-        <main class="main-content hidden" id="admin-dashboard-section">
+        <!-- Main Admin Dashboard Content -->
+        <main class="main-content" id="admin-dashboard-section">
             <!-- Left Side: Config & Passcode Creator -->
             <section class="card control-card">
                 <!-- 1. Admin Token Configuration -->
