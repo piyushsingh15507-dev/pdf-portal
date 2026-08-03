@@ -45,6 +45,82 @@ document.addEventListener('DOMContentLoaded', () => {
 
     verifyAndLoadAdmin(currentAdminSecret);
 
+    // Layout Customization & Panel Reordering
+    const btnToggleLayoutEdit = document.getElementById('btn-toggle-layout-edit');
+    const topControlsContainer = document.getElementById('top-controls-container');
+    let isLayoutEditMode = false;
+
+    restoreLayoutOrder();
+
+    if (btnToggleLayoutEdit) {
+        btnToggleLayoutEdit.addEventListener('click', () => {
+            isLayoutEditMode = !isLayoutEditMode;
+            document.querySelectorAll('.card-order-controls').forEach(ctrl => {
+                if (isLayoutEditMode) {
+                    ctrl.classList.remove('hidden');
+                } else {
+                    ctrl.classList.add('hidden');
+                }
+            });
+
+            if (isLayoutEditMode) {
+                btnToggleLayoutEdit.innerText = '✅ Save Layout Order';
+                btnToggleLayoutEdit.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                btnToggleLayoutEdit.style.color = '#fff';
+            } else {
+                btnToggleLayoutEdit.innerText = '🛠️ Customize Layout';
+                btnToggleLayoutEdit.style.background = 'rgba(139, 92, 246, 0.2)';
+                btnToggleLayoutEdit.style.color = '#c084fc';
+                saveLayoutOrder();
+            }
+        });
+    }
+
+    document.querySelectorAll('.btn-move-up').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const card = e.target.closest('.panel-item');
+            if (card && card.previousElementSibling) {
+                card.parentNode.insertBefore(card, card.previousElementSibling);
+                saveLayoutOrder();
+            }
+        });
+    });
+
+    document.querySelectorAll('.btn-move-down').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const card = e.target.closest('.panel-item');
+            if (card && card.nextElementSibling) {
+                card.parentNode.insertBefore(card.nextElementSibling, card);
+                saveLayoutOrder();
+            }
+        });
+    });
+
+    function saveLayoutOrder() {
+        if (!topControlsContainer) return;
+        const order = Array.from(topControlsContainer.querySelectorAll('.panel-item'))
+            .map(item => item.getAttribute('data-panel-id'));
+        localStorage.setItem('admin_layout_order', JSON.stringify(order));
+    }
+
+    function restoreLayoutOrder() {
+        if (!topControlsContainer) return;
+        const saved = localStorage.getItem('admin_layout_order');
+        if (!saved) return;
+        try {
+            const order = JSON.parse(saved);
+            const panelMap = {};
+            topControlsContainer.querySelectorAll('.panel-item').forEach(item => {
+                panelMap[item.getAttribute('data-panel-id')] = item;
+            });
+            order.forEach(panelId => {
+                if (panelMap[panelId]) {
+                    topControlsContainer.appendChild(panelMap[panelId]);
+                }
+            });
+        } catch (e) {}
+    }
+
     if (btnLockAdmin) {
         btnLockAdmin.addEventListener('click', () => {
             currentAdminSecret = '';

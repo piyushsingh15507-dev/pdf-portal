@@ -27,7 +27,10 @@
                     <p class="tagline">Manage Tokens, Passcodes & Live Student Sessions</p>
                 </div>
             </div>
-            <div class="nav-links" style="display: flex; gap: 10px; align-items: center;">
+            <div class="nav-links" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button id="btn-toggle-layout-edit" class="nav-btn" style="background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.4); cursor: pointer;">
+                    🛠️ Customize Layout
+                </button>
                 <a href="/student.html" target="_blank" class="nav-btn">🎓 Open Student Portal</a>
                 <button id="btn-lock-admin" class="nav-btn" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer;">
                     🔒 Logout Admin
@@ -37,24 +40,36 @@
 
         <!-- Main Admin Dashboard Content -->
         <main class="main-content" id="admin-dashboard-section">
-            <!-- Left Side: Config & Passcode Creator -->
-            <section class="card control-card">
+            <!-- TOP SECTION: Controls & Form Cards Grid -->
+            <section class="top-controls-grid" id="top-controls-container">
                 <!-- 1. Admin Token Configuration -->
-                <div class="panel-section">
-                    <h3 class="section-title">🔑 Global Classplus Access Token</h3>
+                <div class="card control-card panel-item" data-panel-id="panel-token">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">🔑 Global Classplus Access Token</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="admin-token">Classplus Access Token (x-access-token)</label>
                         <input type="text" id="admin-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
                         <span class="help-text" style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px; display: block;">Stored securely on server to auto-scan Classplus PDFs.</span>
                     </div>
-                    <button id="btn-save-token" type="button" class="btn btn-primary" style="margin-top: 10px;">
+                    <button id="btn-save-token" type="button" class="btn btn-primary" style="margin-top: 12px; width: 100%;">
                         💾 Save Admin Token
                     </button>
                 </div>
 
                 <!-- 2. Student Passcode Generator -->
-                <div class="panel-section" style="margin-top: 20px;">
-                    <h3 class="section-title">✨ Generate Student Access Passcode</h3>
+                <div class="card control-card panel-item" data-panel-id="panel-passcode">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">✨ Generate Student Access Passcode</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="passcode-category">Exam Category</label>
@@ -89,15 +104,21 @@
                             <input type="text" id="passcode-course-name" placeholder="e.g. SciAstra Physics 2026 / CUET Mock Series" autocomplete="off">
                         </div>
 
-                        <button id="btn-create-code" type="button" class="btn btn-secondary export-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; margin-top: 8px;">
+                        <button id="btn-create-code" type="button" class="btn btn-secondary export-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; margin-top: 8px; width: 100%;">
                             ➕ Create Access Passcode
                         </button>
                     </div>
                 </div>
 
                 <!-- 3. Custom PDF Link Uploader -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">📁 Add Custom PDF Link</h3>
+                <div class="card control-card panel-item" data-panel-id="panel-pdf">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">📁 Add Custom PDF Link</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add direct PDF URLs (GitHub, Google Drive direct links, Cloudflare) for any passcode.</p>
                     <div class="form-grid">
                         <div class="form-group">
@@ -120,15 +141,21 @@
                             <input type="text" id="custom-pdf-url" placeholder="https://raw.githubusercontent.com/... or https://drive.google.com/..." autocomplete="off">
                         </div>
 
-                        <button id="btn-add-custom-pdf" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white;">
+                        <button id="btn-add-custom-pdf" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; width: 100%;">
                             ➕ Add PDF to Passcode
                         </button>
                     </div>
                 </div>
 
                 <!-- 4. Custom Video Lecture Uploader -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">🎥 Add Custom Video Lecture</h3>
+                <div class="card control-card panel-item" data-panel-id="panel-video">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">🎥 Add Custom Video Lecture</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Add YouTube Unlisted links, HLS (.m3u8), Bunny.net, or Video URLs for any passcode.</p>
                     <div class="form-grid">
                         <div class="form-group">
@@ -151,15 +178,21 @@
                             <input type="text" id="custom-vid-url" placeholder="https://www.youtube.com/watch?v=... or https://..." autocomplete="off">
                         </div>
 
-                        <button id="btn-add-custom-vid" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); color: white;">
+                        <button id="btn-add-custom-vid" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); color: white; width: 100%;">
                             🎥 Add Video Lecture to Passcode
                         </button>
                     </div>
                 </div>
 
-                <!-- 5. Real Telegram Bot OTP Gateway Configuration -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">🤖 Real Telegram Bot OTP Gateway (100% Free & Instant)</h3>
+                <!-- 5. Real Telegram Bot Gateway Settings -->
+                <div class="card control-card panel-item" data-panel-id="panel-telegram">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">🤖 Real Telegram Bot OTP Gateway</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Deliver real 6-digit OTP notifications straight to your Telegram App via Bot!</p>
                     <div class="form-grid">
                         <div class="form-group">
@@ -170,108 +203,84 @@
                             <label for="tg-chat-id">Telegram Admin Chat ID (from @userinfobot)</label>
                             <input type="text" id="tg-chat-id" placeholder="e.g. 123456789" autocomplete="off">
                         </div>
-                        <button id="btn-save-tg-gateway" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #0088cc, #24a1de); color: white;">
+                        <button id="btn-save-tg-gateway" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #0088cc, #24a1de); color: white; width: 100%;">
                             🤖 Save Telegram Bot Gateway Settings
                         </button>
                     </div>
                 </div>
 
-                <!-- 6. Real Email OTP Gateway Configuration -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">📧 Real Email OTP Gateway (Gmail SMTP)</h3>
-                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">No DLT required! Deliver real 6-digit OTP emails directly to your Gmail inbox instantly.</p>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="smtp-email">Sender Gmail Address</label>
-                            <input type="text" id="smtp-email" placeholder="e.g. yourname@gmail.com" autocomplete="off">
-                        </div>
-                        <div class="form-group">
-                            <label for="smtp-pass">Gmail App Password (16-character)</label>
-                            <input type="password" id="smtp-pass" placeholder="e.g. abcd efgh ijkl mnop" autocomplete="off">
-                        </div>
-                        <button id="btn-save-email-gateway" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white;">
-                            📧 Save Email Gateway Settings
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 6. Real SMS OTP Gateway Configuration -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">📱 Real SMS OTP Gateway (Fast2SMS / Twilio)</h3>
-                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Configure Fast2SMS / Twilio API Key to deliver real SMS OTPs to Indian mobile numbers.</p>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="sms-api-key">Fast2SMS / Twilio API Authorization Key</label>
-                            <input type="password" id="sms-api-key" placeholder="Paste Fast2SMS / Twilio API Key..." autocomplete="off">
-                        </div>
-                        <button id="btn-save-sms-key" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
-                            📱 Save SMS Gateway Key
-                        </button>
-                    </div>
-                </div>
-
                 <!-- 6. Change Admin Secret Password -->
-                <div class="panel-section" style="margin-top: 24px;">
-                    <h3 class="section-title">🔒 Change Admin Master Password</h3>
+                <div class="card control-card panel-item" data-panel-id="panel-password">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">🔒 Change Admin Master Password</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label for="new-admin-secret">New Admin Master Password</label>
                             <input type="password" id="new-admin-secret" placeholder="Enter new secret password..." autocomplete="off">
                         </div>
-                        <button id="btn-change-admin-secret" type="button" class="btn btn-danger export-btn">
+                        <button id="btn-change-admin-secret" type="button" class="btn btn-danger export-btn" style="width: 100%;">
                             🔒 Update Admin Password
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Side: Active Passcodes & Live Student Monitor -->
-            <section class="card results-card">
+            <!-- BOTTOM SECTION: Full-Width Passcodes Table & Live Session Monitor -->
+            <section class="bottom-monitors-container">
                 <!-- Active Passcodes Table -->
-                <div class="results-header">
-                    <h2>Active Student Passcodes</h2>
-                    <span class="stats-badge" id="passcode-count-badge">0 Active Codes</span>
-                </div>
+                <div class="card results-card">
+                    <div class="results-header">
+                        <h2>🔑 Active Student Passcodes</h2>
+                        <span class="stats-badge" id="passcode-count-badge">0 Active Codes</span>
+                    </div>
 
-                <div class="passcode-table-container">
-                    <table class="passcode-table">
-                        <thead>
-                            <tr>
-                                <th>Passcode</th>
-                                <th>Course ID</th>
-                                <th>Course Name / Batch</th>
-                                <th>Sources</th>
-                                <th style="width: 80px; text-align: center;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="passcodes-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+                    <div class="passcode-table-container">
+                        <table class="passcode-table">
+                            <thead>
+                                <tr>
+                                    <th>Passcode</th>
+                                    <th>Course ID</th>
+                                    <th>Course Name / Batch</th>
+                                    <th>Sources</th>
+                                    <th style="width: 80px; text-align: center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="passcodes-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Live Active Students & Force Logout -->
-                <div class="results-header" style="margin-top: 28px;">
-                    <h2>👥 Live Active Student Sessions</h2>
-                    <span class="stats-badge" id="student-count-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3);">0 Online</span>
-                </div>
+                <div class="card results-card">
+                    <div class="results-header">
+                        <h2>👥 Live Active Student Sessions</h2>
+                        <span class="stats-badge" id="student-count-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3);">0 Online</span>
+                    </div>
 
-                <div class="student-table-container">
-                    <table class="student-table">
-                        <thead>
-                            <tr>
-                                <th>Student Name</th>
-                                <th>Used Passcode</th>
-                                <th>IP Address</th>
-                                <th>Last Active</th>
-                                <th>PDFs Opened</th>
-                                <th style="width: 140px; text-align: center;">Security Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="students-tbody">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+                    <div class="student-table-container">
+                        <table class="student-table">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Used Passcode</th>
+                                    <th>IP Address</th>
+                                    <th>Last Active</th>
+                                    <th>PDFs Opened</th>
+                                    <th style="width: 140px; text-align: center;">Security Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         </main>
