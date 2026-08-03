@@ -235,6 +235,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_export_pdf_links(data)
         elif path == "/api/pdf/batch-download":
             self.handle_pdf_batch_download(data)
+        elif path == "/api/admin/auth":
+            self.handle_admin_auth(data)
+        elif path == "/api/admin/change-secret":
+            self.handle_admin_change_secret(data)
         elif path == "/api/admin/save-token":
             self.handle_admin_save_token(data)
         elif path == "/api/admin/create-code":
@@ -1595,8 +1599,51 @@ def get_client_ip(handler):
         return ff.split(",")[0].strip()
     return handler.client_address[0]
 
-def handle_admin_get_data(self):
+def verify_admin_auth(handler, data=None):
     db = load_db()
+    master_secret = db.get("admin_secret_key") or "ADMIN123"
+    
+    provided = handler.headers.get("X-Admin-Secret", "")
+    if not provided and data and isinstance(data, dict):
+        provided = data.get("admin_secret", "") or data.get("secret", "")
+        
+    if provided and provided.strip() == master_secret.strip():
+        return True
+    return False
+
+def handle_admin_auth(self, data):
+    password = data.get("password", "").strip()
+    db = load_db()
+    master_secret = db.get("admin_secret_key") or "ADMIN123"
+
+    if password == master_secret:
+        self.send_json({"success": True, "message": "Admin authenticated successfully.", "secret": master_secret})
+    else:
+        self.send_json({"success": False, "error": "Invalid Admin Password or Secret Key."}, 401)
+
+def handle_admin_change_secret(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+    new_secret = data.get("new_secret", "").strip()
+    if not new_secret or len(new_secret) < 4:
+        self.send_json({"success": False, "error": "New Admin Password must be at least 4 characters."}, 400)
+        return
+
+    db = load_db()
+    db["admin_secret_key"] = new_secret
+    save_db(db)
+    self.send_json({"success": True, "message": "Admin Password updated successfully!"})
+
+def handle_admin_get_data(self):
+    headers_secret = self.headers.get("X-Admin-Secret", "")
+    db = load_db()
+    master_secret = db.get("admin_secret_key") or "ADMIN123"
+
+    if headers_secret.strip() != master_secret.strip():
+        self.send_json({"success": False, "error": "Unauthorized: Invalid Admin Secret Key"}, 401)
+        return
+
     sessions = db.get("student_sessions", [])
     now_ts = time.time()
     for s in sessions:
@@ -2028,6 +2075,8 @@ def handle_student_click(self, data):
     save_db(db)
     self.send_json({"success": True})
 
+APIHandler.handle_admin_auth = handle_admin_auth
+APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code

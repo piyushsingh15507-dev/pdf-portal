@@ -24,15 +24,38 @@
                 <div class="logo-icon">⚙️</div>
                 <div>
                     <h1>Classplus Admin Control Panel</h1>
-                    <p class="tagline">Manage Tokens & Generate Student Access Passcodes</p>
+                    <p class="tagline">Manage Tokens, Passcodes & Live Student Sessions</p>
                 </div>
             </div>
-            <div class="nav-links">
+            <div class="nav-links" style="display: flex; gap: 10px; align-items: center;">
                 <a href="/student.html" target="_blank" class="nav-btn">🎓 Open Student Portal</a>
+                <button id="btn-lock-admin" class="nav-btn hidden" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer;">
+                    🔒 Lock Admin Panel
+                </button>
             </div>
         </header>
 
-        <main class="main-content">
+        <!-- Admin Authentication Lock Screen (Shown by default) -->
+        <section class="card login-card" id="admin-login-section" style="max-width: 480px; margin: 40px auto; text-align: center;">
+            <div class="login-header">
+                <div class="key-icon" style="font-size: 3rem; margin-bottom: 12px;">🛡️</div>
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 8px;">Admin Security Authentication</h2>
+                <p style="font-size: 0.88rem; color: #94a3b8; margin-bottom: 20px;">Enter your Admin Secret Password / PIN to access the dashboard controls.</p>
+            </div>
+            <div class="login-form">
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 12px; text-align: left;">
+                    <label for="admin-auth-pass" style="font-size: 0.85rem; color: #9ca3af; font-weight: 500;">Admin Master Password / Key</label>
+                    <input type="password" id="admin-auth-pass" placeholder="Enter Admin Secret Password..." autocomplete="off">
+                    <button id="btn-admin-auth" type="button" class="btn btn-primary" style="margin-top: 8px; width: 100%; background: linear-gradient(135deg, #8b5cf6, #3b82f6); padding: 13px; font-weight: 600;">
+                        🔓 Unlock Admin Dashboard
+                    </button>
+                </div>
+                <div class="error-msg hidden" id="admin-auth-error" style="margin-top: 12px;"></div>
+            </div>
+        </section>
+
+        <!-- Main Admin Dashboard Content (Hidden until authenticated) -->
+        <main class="main-content hidden" id="admin-dashboard-section">
             <!-- Left Side: Config & Passcode Creator -->
             <section class="card control-card">
                 <!-- 1. Admin Token Configuration -->
@@ -41,15 +64,15 @@
                     <div class="form-group">
                         <label for="admin-token">Classplus Access Token (x-access-token)</label>
                         <input type="text" id="admin-token" placeholder="Paste eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9..." autocomplete="off">
-                        <span class="help-text">This token is stored securely on the server and used to serve PDFs to students.</span>
+                        <span class="help-text" style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px; display: block;">Stored securely on server to auto-scan Classplus PDFs.</span>
                     </div>
-                    <button id="btn-save-token" class="btn btn-primary" style="margin-top: 10px;">
+                    <button id="btn-save-token" type="button" class="btn btn-primary" style="margin-top: 10px;">
                         💾 Save Admin Token
                     </button>
                 </div>
 
                 <!-- 2. Student Passcode Generator -->
-                <div class="panel-section">
+                <div class="panel-section" style="margin-top: 20px;">
                     <h3 class="section-title">✨ Generate Student Access Passcode</h3>
                     <div class="form-grid">
                         <div class="form-group">
@@ -152,12 +175,27 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- 5. Change Admin Secret Password -->
+                <div class="panel-section" style="margin-top: 24px;">
+                    <h3 class="section-title">🔒 Change Admin Master Password</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="new-admin-secret">New Admin Master Password</label>
+                            <input type="password" id="new-admin-secret" placeholder="Enter new secret password..." autocomplete="off">
+                        </div>
+                        <button id="btn-change-admin-secret" type="button" class="btn btn-danger export-btn">
+                            🔒 Update Admin Password
+                        </button>
+                    </div>
+                </div>
             </section>
 
-            <!-- Right Side: Active Passcodes List & Live Student Monitor -->
-            <section class="card data-card">
+            <!-- Right Side: Active Passcodes & Live Student Monitor -->
+            <section class="card results-card">
+                <!-- Active Passcodes Table -->
                 <div class="results-header">
-                    <h2 class="section-title">📋 Active Student Access Passcodes</h2>
+                    <h2>Active Student Passcodes</h2>
                     <span class="stats-badge" id="passcode-count-badge">0 Active Codes</span>
                 </div>
 
@@ -165,48 +203,39 @@
                     <table class="passcode-table">
                         <thead>
                             <tr>
-                                <th>Passcode & Category</th>
+                                <th>Passcode</th>
                                 <th>Course ID</th>
-                                <th>Course Name</th>
-                                <th>PDF Source</th>
-                                <th style="width: 120px; text-align: center;">Actions</th>
+                                <th>Course Name / Batch</th>
+                                <th>Sources</th>
+                                <th style="width: 80px; text-align: center;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="passcodes-tbody">
-                            <tr class="empty-row">
-                                <td colspan="4" style="text-align: center; padding: 30px; color: #9ca3af;">
-                                    🔑 No student access passcodes created yet.
-                                </td>
-                            </tr>
+                            <!-- Populated dynamically -->
                         </tbody>
                     </table>
                 </div>
 
-                <!-- 3. Live Student Activity & IP Monitor -->
-                <div class="results-header" style="margin-top: 24px;">
-                    <h2 class="section-title">📡 Live Student Activity & IP Monitor</h2>
-                    <span class="stats-badge" id="active-students-badge" style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">0 Connected Students</span>
+                <!-- Live Active Students & Force Logout -->
+                <div class="results-header" style="margin-top: 28px;">
+                    <h2>👥 Live Active Student Sessions</h2>
+                    <span class="stats-badge" id="student-count-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3);">0 Online</span>
                 </div>
 
-                <div class="passcode-table-container">
-                    <table class="passcode-table">
+                <div class="student-table-container">
+                    <table class="student-table">
                         <thead>
                             <tr>
                                 <th>Student Name</th>
-                                <th>Passcode Used</th>
+                                <th>Used Passcode</th>
                                 <th>IP Address</th>
-                                <th>Status</th>
-                                <th>PDFs Clicked</th>
                                 <th>Last Active</th>
-                                <th style="width: 140px; text-align: center;">Admin Action</th>
+                                <th>PDFs Opened</th>
+                                <th style="width: 140px; text-align: center;">Security Action</th>
                             </tr>
                         </thead>
                         <tbody id="students-tbody">
-                            <tr class="empty-row">
-                                <td colspan="7" style="text-align: center; padding: 30px; color: #9ca3af;">
-                                    📡 No active student sessions recorded yet. When students log in and download PDFs, their live status and clicks will appear here!
-                                </td>
-                            </tr>
+                            <!-- Populated dynamically -->
                         </tbody>
                     </table>
                 </div>
@@ -214,7 +243,7 @@
         </main>
 
         <footer class="app-footer">
-            <p>Classplus Admin Management Portal &copy; 2026 | Real-time Integration</p>
+            <p>Classplus Admin Security System &copy; 2026 | Protected Portal Control</p>
         </footer>
     </div>
 </body>
