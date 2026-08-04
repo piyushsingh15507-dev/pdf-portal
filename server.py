@@ -1765,10 +1765,12 @@ def send_real_whatsapp_otp(target_phone, otp_code, access_token=None, phone_numb
         cleaned_phone = "91" + cleaned_phone
         
     if not access_token or not phone_number_id or len(cleaned_phone) < 10:
-        return False, "WhatsApp Access Token or Phone Number ID not configured."
+        return False, "WhatsApp Access Token not configured yet in Admin Panel."
 
+    url = f"https://graph.facebook.com/v19.0/{phone_number_id.strip()}/messages"
+
+    # Attempt 1: Freeform text message
     try:
-        url = f"https://graph.facebook.com/v19.0/{phone_number_id.strip()}/messages"
         payload = json.dumps({
             "messaging_product": "whatsapp",
             "to": cleaned_phone,
@@ -1787,10 +1789,31 @@ def send_real_whatsapp_otp(target_phone, otp_code, access_token=None, phone_numb
             if "messages" in res_data:
                 return True, f"Real WhatsApp OTP delivered to +{cleaned_phone}"
     except Exception as e:
-        print(f"WhatsApp Meta Cloud API Error: {e}")
-        return False, f"WhatsApp dispatch failed: {str(e)}"
+        print(f"WhatsApp Text Message Attempt Error: {e}")
+        # Attempt 2: Standard Meta Test Template
+        try:
+            payload_tmpl = json.dumps({
+                "messaging_product": "whatsapp",
+                "to": cleaned_phone,
+                "type": "template",
+                "template": {
+                    "name": "hello_world",
+                    "language": { "code": "en_US" }
+                }
+            }).encode('utf-8')
+            req2 = urllib.request.Request(url, data=payload_tmpl, headers={
+                "Authorization": f"Bearer {access_token.strip()}",
+                "Content-Type": "application/json"
+            })
+            with urllib.request.urlopen(req2, context=SSL_CTX, timeout=8) as resp2:
+                res_data2 = json.loads(resp2.read().decode('utf-8'))
+                if "messages" in res_data2:
+                    return True, f"Real WhatsApp Test Template delivered to +{cleaned_phone}"
+        except Exception as e2:
+            print(f"WhatsApp Template Fallback Error: {e2}")
+            return False, f"WhatsApp delivery failed: {str(e2)}"
 
-    return False, "WhatsApp dispatch failed."
+    return False, "WhatsApp delivery failed."
 
 def handle_whatsapp_webhook_verification(self, parsed_url):
     query = urllib.parse.parse_qs(parsed_url.query)
