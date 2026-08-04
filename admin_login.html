@@ -170,6 +170,40 @@
                 }
             });
 
+            let timerInterval = null;
+
+            function startOtpCountdown(durationSec = 300) {
+                if (timerInterval) clearInterval(timerInterval);
+                let remaining = durationSec;
+                
+                btnRequestOtp.disabled = true;
+
+                const updateTimerDisplay = () => {
+                    const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
+                    const secs = String(remaining % 60).padStart(2, '0');
+
+                    if (remaining > 0) {
+                        otpInfoBanner.innerHTML = `📱 Real OTP sent to Telegram Bot! <strong style="color: #facc15; font-family: monospace;">⏳ Expires in ${mins}:${secs}</strong>`;
+                        btnRequestOtp.innerText = `⏳ Resend OTP in ${mins}:${secs}`;
+                        otpInfoBanner.style.background = 'rgba(0, 136, 204, 0.15)';
+                        otpInfoBanner.style.color = '#38bdf8';
+                        otpInfoBanner.style.borderColor = 'rgba(0, 136, 204, 0.3)';
+                    } else {
+                        clearInterval(timerInterval);
+                        otpInfoBanner.innerHTML = `❌ <strong>OTP Expired!</strong> Please click below to get a new code.`;
+                        otpInfoBanner.style.background = 'rgba(239, 68, 68, 0.15)';
+                        otpInfoBanner.style.color = '#f87171';
+                        otpInfoBanner.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                        btnRequestOtp.disabled = false;
+                        btnRequestOtp.innerText = '🔄 Resend New OTP to Telegram Bot';
+                    }
+                    remaining--;
+                };
+
+                updateTimerDisplay();
+                timerInterval = setInterval(updateTimerDisplay, 1000);
+            }
+
             // Option B: Request Telegram Bot OTP
             btnRequestOtp.addEventListener('click', async () => {
                 btnRequestOtp.disabled = true;
@@ -185,14 +219,15 @@
                     const data = await res.json();
 
                     if (data.success) {
-                        otpInfoBanner.innerText = `📱 ${data.message}`;
                         otpInfoBanner.classList.remove('hidden');
+                        startOtpCountdown(300); // 5 Minutes
                     } else {
                         showError(data.error || 'Failed to send Telegram Bot OTP.');
+                        btnRequestOtp.disabled = false;
+                        btnRequestOtp.innerText = '📱 Send 6-Digit OTP to Telegram Bot';
                     }
                 } catch (err) {
                     showError(`Error: ${err.message}`);
-                } finally {
                     btnRequestOtp.disabled = false;
                     btnRequestOtp.innerText = '📱 Send 6-Digit OTP to Telegram Bot';
                 }
