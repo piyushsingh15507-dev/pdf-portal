@@ -1758,7 +1758,7 @@ def send_real_whatsapp_otp(target_phone, otp_code, access_token=None, phone_numb
     if not access_token:
         access_token = db.get("whatsapp_access_token") or os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
     if not phone_number_id:
-        phone_number_id = db.get("whatsapp_phone_number_id") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+        phone_number_id = db.get("whatsapp_phone_number_id") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "1229458243587360")
         
     cleaned_phone = re.sub(r'[^\d]', '', str(target_phone))
     if len(cleaned_phone) == 10:
