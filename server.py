@@ -203,8 +203,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_batch_status()
         elif path == "/api/pdf/batch-status":
             self.handle_pdf_batch_status()
-        elif path == "/api/whatsapp/webhook":
-            self.handle_whatsapp_webhook_verification(parsed_url)
         else:
             self.send_error(404, "File Not Found")
 
@@ -252,10 +250,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_save_email_gateway(data)
         elif path == "/api/admin/save-telegram-gateway":
             self.handle_admin_save_telegram_gateway(data)
-        elif path == "/api/admin/save-whatsapp-gateway":
-            self.handle_admin_save_whatsapp_gateway(data)
-        elif path == "/api/whatsapp/webhook":
-            self.handle_whatsapp_webhook_event(data)
         elif path == "/api/admin/save-token":
             self.handle_admin_save_token(data)
         elif path == "/api/admin/create-code":
@@ -1751,116 +1745,6 @@ def send_real_telegram_otp(chat_id, otp_code, bot_token=None):
 
     return False, "Telegram dispatch failed."
 
-def send_real_whatsapp_otp(target_phone, otp_code, access_token=None, phone_number_id=None):
-    """
-    Sends real WhatsApp OTP message using Meta Cloud API.
-    """
-    db = load_db()
-    if not access_token:
-        access_token = db.get("whatsapp_access_token") or os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
-    if not phone_number_id:
-        phone_number_id = db.get("whatsapp_phone_number_id") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "1229458243587360")
-        
-    cleaned_phone = re.sub(r'[^\d]', '', str(target_phone))
-    if len(cleaned_phone) == 10:
-        cleaned_phone = "91" + cleaned_phone
-        
-    if not access_token or not phone_number_id or len(cleaned_phone) < 10:
-        return False, "WhatsApp Access Token not configured yet in Admin Panel."
-
-    url = f"https://graph.facebook.com/v19.0/{phone_number_id.strip()}/messages"
-
-    # Attempt 1: Freeform text message
-    try:
-        payload = json.dumps({
-            "messaging_product": "whatsapp",
-            "to": cleaned_phone,
-            "type": "text",
-            "text": {
-                "body": f"🔐 Your Portal Verification Security OTP is: *{otp_code}*\n\n⏱️ Valid for 5 minutes. Do not share this code."
-            }
-        }).encode('utf-8')
-
-        req = urllib.request.Request(url, data=payload, headers={
-            "Authorization": f"Bearer {access_token.strip()}",
-            "Content-Type": "application/json"
-        })
-        with urllib.request.urlopen(req, context=SSL_CTX, timeout=8) as resp:
-            res_data = json.loads(resp.read().decode('utf-8'))
-            if "messages" in res_data:
-                return True, f"Real WhatsApp OTP delivered to +{cleaned_phone}"
-    except Exception as e:
-        print(f"WhatsApp Text Message Attempt Error: {e}")
-        # Attempt 2: Standard Meta Test Template
-        try:
-            payload_tmpl = json.dumps({
-                "messaging_product": "whatsapp",
-                "to": cleaned_phone,
-                "type": "template",
-                "template": {
-                    "name": "hello_world",
-                    "language": { "code": "en_US" }
-                }
-            }).encode('utf-8')
-            req2 = urllib.request.Request(url, data=payload_tmpl, headers={
-                "Authorization": f"Bearer {access_token.strip()}",
-                "Content-Type": "application/json"
-            })
-            with urllib.request.urlopen(req2, context=SSL_CTX, timeout=8) as resp2:
-                res_data2 = json.loads(resp2.read().decode('utf-8'))
-                if "messages" in res_data2:
-                    return True, f"Real WhatsApp Test Template delivered to +{cleaned_phone}"
-        except Exception as e2:
-            print(f"WhatsApp Template Fallback Error: {e2}")
-            return False, f"WhatsApp delivery failed: {str(e2)}"
-
-    return False, "WhatsApp delivery failed."
-
-def handle_whatsapp_webhook_verification(self, parsed_url):
-    query = urllib.parse.parse_qs(parsed_url.query)
-    mode = query.get("hub.mode", [""])[0]
-    token = query.get("hub.verify_token", [""])[0]
-    challenge = query.get("hub.challenge", [""])[0]
-
-    db = load_db()
-    verify_token = db.get("whatsapp_verify_token") or "MY_SECRET_WHATSAPP_TOKEN_2026"
-
-    print(f"\n[WHATSAPP VERIFICATION REQUEST] mode='{mode}', token='{token}', verify_token='{verify_token}', challenge='{challenge}'\n")
-
-    if mode == "subscribe" and (token.strip() == "MY_SECRET_WHATSAPP_TOKEN_2026" or token.strip() == verify_token.strip() or len(token) > 0):
-        challenge_bytes = challenge.encode('utf-8')
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain")
-        self.send_header("Content-Length", str(len(challenge_bytes)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(challenge_bytes)
-        print(f"\n[WHATSAPP WEBHOOK SUCCESS] Challenge returned: {challenge}\n")
-    else:
-        self.send_response(403)
-        self.send_header("Content-Type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Verification failed")
-
-def handle_whatsapp_webhook_event(self, data):
-    print(f"\n[WHATSAPP WEBHOOK EVENT] Received: {json.dumps(data)}\n")
-    self.send_json({"status": "received"})
-
-def handle_admin_save_whatsapp_gateway(self, data):
-    if not verify_admin_auth(self, data):
-        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
-        return
-    phone_id = data.get("phone_number_id", "").strip()
-    token = data.get("access_token", "").strip()
-    verify_token = data.get("verify_token", "").strip() or "MY_SECRET_WHATSAPP_TOKEN_2026"
-    
-    db = load_db()
-    db["whatsapp_phone_number_id"] = phone_id
-    db["whatsapp_access_token"] = token
-    db["whatsapp_verify_token"] = verify_token
-    save_db(db)
-    self.send_json({"success": True, "message": "Meta WhatsApp Gateway Settings saved successfully!"})
-
 TELEGRAM_PENDING_OTPS = {}
 TELEGRAM_POLL_LAST_ID = 0
 
@@ -2537,9 +2421,6 @@ APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_save_sms_key = handle_admin_save_sms_key
 APIHandler.handle_admin_save_email_gateway = handle_admin_save_email_gateway
 APIHandler.handle_admin_save_telegram_gateway = handle_admin_save_telegram_gateway
-APIHandler.handle_admin_save_whatsapp_gateway = handle_admin_save_whatsapp_gateway
-APIHandler.handle_whatsapp_webhook_verification = handle_whatsapp_webhook_verification
-APIHandler.handle_whatsapp_webhook_event = handle_whatsapp_webhook_event
 APIHandler.handle_admin_get_data = handle_admin_get_data
 APIHandler.handle_admin_save_token = handle_admin_save_token
 APIHandler.handle_admin_create_code = handle_admin_create_code
