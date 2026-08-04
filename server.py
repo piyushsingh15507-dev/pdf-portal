@@ -1861,32 +1861,32 @@ def handle_admin_save_whatsapp_gateway(self, data):
     self.send_json({"success": True, "message": "Meta WhatsApp Gateway Settings saved successfully!"})
 
 def handle_admin_request_otp(self, data):
-    target_phone = data.get("phone", "").strip() or "9406122648"
     otp_code = str(random.randint(100000, 999999))
     
     db = load_db()
     db["admin_otp"] = {
         "code": otp_code,
-        "expires_at": time.time() + 300,
-        "phone": target_phone
+        "expires_at": time.time() + 300
     }
     save_db(db)
     
-    wa_sent, wa_msg = send_real_whatsapp_otp(target_phone, otp_code)
-    print(f"\n[WHATSAPP OTP DISPATCH] Phone: {target_phone} | OTP: {otp_code} | Status: {wa_msg}\n")
+    tg_token = db.get("telegram_bot_token", "").strip()
+    tg_chat = db.get("telegram_chat_id", "").strip()
     
-    if wa_sent:
+    tg_sent, tg_msg = send_real_telegram_otp(tg_chat, otp_code, tg_token)
+    
+    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] OTP generated: {otp_code} | Status: {tg_msg}\n")
+    
+    if tg_sent:
         self.send_json({
             "success": True, 
-            "message": f"💬 Security OTP dispatched to WhatsApp (+{target_phone})! Check your WhatsApp App."
+            "message": "📱 Real Security OTP dispatched to your Telegram App via Bot! Please check your Telegram Bot."
         })
     else:
         self.send_json({
-            "success": True,
-            "message": f"WhatsApp Gateway notice: {wa_msg}",
-            "wa_missing": True,
-            "otp_demo": otp_code
-        })
+            "success": False,
+            "error": "Telegram Bot Token or Chat ID not configured. Please login using Master Password and configure Telegram Bot in Admin Settings."
+        }, 400)
 
 def handle_admin_save_telegram_gateway(self, data):
     if not verify_admin_auth(self, data):

@@ -31,7 +31,7 @@
                     🔑 Master Password
                 </button>
                 <button id="auth-tab-otp" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; font-size: 0.88rem; cursor: pointer; background: transparent; color: #9ca3af;">
-                    💬 WhatsApp OTP
+                    📱 Telegram Bot OTP
                 </button>
             </div>
             
@@ -47,21 +47,16 @@
                 </button>
             </form>
 
-            <!-- Option B: WhatsApp Cloud API OTP Login Form -->
+            <!-- Option B: Telegram Bot OTP Login Form -->
             <form id="admin-otp-form" class="hidden" style="display: flex; flex-direction: column; gap: 14px;">
-                <div class="form-group" style="text-align: left;">
-                    <label for="login-admin-phone" style="font-size: 0.83rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">WhatsApp Mobile Number</label>
-                    <input type="text" id="login-admin-phone" placeholder="e.g. +91 9406122648" value="+91 9406122648" autocomplete="off" style="padding: 13px; font-size: 0.95rem;">
-                </div>
-
                 <div class="form-group" style="text-align: center;">
-                    <button id="btn-request-otp" type="button" class="btn btn-secondary" style="width: 100%; background: linear-gradient(135deg, #25D366, #128C7E); color: white; padding: 12px; font-size: 0.95rem; font-weight: 600; border: none;">
-                        💬 Send OTP to WhatsApp App
+                    <button id="btn-request-otp" type="button" class="btn btn-secondary" style="width: 100%; background: linear-gradient(135deg, #0088cc, #24a1de); color: white; padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;">
+                        📱 Send 6-Digit OTP to Telegram Bot
                     </button>
                 </div>
 
                 <div class="form-group" style="text-align: left;">
-                    <label for="login-admin-otp" style="font-size: 0.83rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">6-Digit WhatsApp OTP</label>
+                    <label for="login-admin-otp" style="font-size: 0.83rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">6-Digit Telegram OTP</label>
                     <input type="text" id="login-admin-otp" placeholder="e.g. 749201" maxlength="6" autocomplete="off" style="padding: 13px; font-size: 1.1rem; text-align: center; letter-spacing: 4px; font-family: 'JetBrains Mono', monospace;">
                 </div>
                 
@@ -71,7 +66,7 @@
             </form>
 
             <div class="error-msg hidden" id="login-error-msg" style="margin-top: 14px;"></div>
-            <div id="otp-demo-banner" class="hidden" style="margin-top: 14px; padding: 10px; background: rgba(37, 211, 102, 0.15); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; color: #4ade80; font-size: 0.85rem;"></div>
+            <div id="otp-info-banner" class="hidden" style="margin-top: 14px; padding: 10px; background: rgba(0, 136, 204, 0.15); border: 1px solid rgba(0, 136, 204, 0.3); border-radius: 8px; color: #38bdf8; font-size: 0.85rem;"></div>
 
             <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
                 <a href="/student.html" style="color: #94a3b8; font-size: 0.85rem; text-decoration: none; font-weight: 500;">
@@ -91,13 +86,12 @@
             const passInput = document.getElementById('login-admin-pass');
             const btnSubmitPass = document.getElementById('btn-submit-pass');
 
-            const phoneInput = document.getElementById('login-admin-phone');
             const btnRequestOtp = document.getElementById('btn-request-otp');
             const otpInput = document.getElementById('login-admin-otp');
             const btnSubmitOtp = document.getElementById('btn-submit-otp');
 
             const errorMsg = document.getElementById('login-error-msg');
-            const otpDemoBanner = document.getElementById('otp-demo-banner');
+            const otpInfoBanner = document.getElementById('otp-info-banner');
 
             // Tab Switching
             tabPass.addEventListener('click', () => {
@@ -111,7 +105,7 @@
             });
 
             tabOtp.addEventListener('click', () => {
-                tabOtp.style.background = 'linear-gradient(135deg, #25D366, #128C7E)';
+                tabOtp.style.background = 'linear-gradient(135deg, #0088cc, #24a1de)';
                 tabOtp.style.color = 'white';
                 tabPass.style.background = 'transparent';
                 tabPass.style.color = '#9ca3af';
@@ -123,6 +117,7 @@
             function showError(msg) {
                 errorMsg.innerText = msg;
                 errorMsg.classList.remove('hidden');
+                otpInfoBanner.classList.add('hidden');
             }
 
             function hideError() {
@@ -175,38 +170,31 @@
                 }
             });
 
-            // Option B: Request WhatsApp OTP
+            // Option B: Request Telegram Bot OTP
             btnRequestOtp.addEventListener('click', async () => {
-                const phone = phoneInput ? phoneInput.value.trim() : '9406122648';
                 btnRequestOtp.disabled = true;
-                btnRequestOtp.innerText = 'Sending to WhatsApp...';
+                btnRequestOtp.innerText = 'Sending to Telegram Bot...';
                 hideError();
 
                 try {
                     const res = await fetch('/api/admin/request-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone })
+                        body: JSON.stringify({})
                     });
                     const data = await res.json();
 
                     if (data.success) {
-                        if (data.wa_missing && data.otp_demo) {
-                            otpInput.value = data.otp_demo;
-                            otpDemoBanner.innerText = `⚠️ ${data.message} (Demo OTP: ${data.otp_demo})`;
-                            otpDemoBanner.classList.remove('hidden');
-                        } else {
-                            otpDemoBanner.innerText = `💬 ${data.message}`;
-                            otpDemoBanner.classList.remove('hidden');
-                        }
+                        otpInfoBanner.innerText = `📱 ${data.message}`;
+                        otpInfoBanner.classList.remove('hidden');
                     } else {
-                        showError(data.error || 'Failed to send WhatsApp OTP.');
+                        showError(data.error || 'Failed to send Telegram Bot OTP.');
                     }
                 } catch (err) {
                     showError(`Error: ${err.message}`);
                 } finally {
                     btnRequestOtp.disabled = false;
-                    btnRequestOtp.innerText = '💬 Send OTP to WhatsApp App';
+                    btnRequestOtp.innerText = '📱 Send 6-Digit OTP to Telegram Bot';
                 }
             });
 
@@ -215,7 +203,7 @@
                 e.preventDefault();
                 const otp = otpInput.value.trim();
                 if (!otp || otp.length < 6) {
-                    showError('Please enter 6-digit WhatsApp OTP.');
+                    showError('Please enter 6-digit Telegram OTP.');
                     return;
                 }
 
@@ -236,7 +224,7 @@
                         localStorage.setItem('admin_secret', data.secret);
                         window.location.href = '/galactosidase_adadmiin.html';
                     } else {
-                        showError(data.error || 'Invalid or Expired WhatsApp OTP.');
+                        showError(data.error || 'Invalid or Expired Telegram OTP.');
                     }
                 } catch (err) {
                     showError(`Network error: ${err.message}`);
