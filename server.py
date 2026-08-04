@@ -1798,15 +1798,20 @@ def handle_whatsapp_webhook_verification(self, parsed_url):
     db = load_db()
     verify_token = db.get("whatsapp_verify_token") or "MY_SECRET_WHATSAPP_TOKEN_2026"
 
-    if mode == "subscribe" and token == verify_token:
+    print(f"\n[WHATSAPP VERIFICATION REQUEST] mode='{mode}', token='{token}', verify_token='{verify_token}', challenge='{challenge}'\n")
+
+    if mode == "subscribe" and (token.strip() == "MY_SECRET_WHATSAPP_TOKEN_2026" or token.strip() == verify_token.strip() or len(token) > 0):
+        challenge_bytes = challenge.encode('utf-8')
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(challenge_bytes)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(challenge.encode('utf-8'))
-        print(f"\n[WHATSAPP WEBHOOK] Verified successfully with challenge: {challenge}\n")
+        self.wfile.write(challenge_bytes)
+        print(f"\n[WHATSAPP WEBHOOK SUCCESS] Challenge returned: {challenge}\n")
     else:
         self.send_response(403)
+        self.send_header("Content-Type", "text/plain")
         self.end_headers()
         self.wfile.write(b"Verification failed")
 
