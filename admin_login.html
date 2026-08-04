@@ -9,6 +9,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="admin_style.css">
+    <style>
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        .auth-form.hidden {
+            display: none !important;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
 </head>
 <body>
     <div class="background-decorations">
@@ -27,16 +42,16 @@
 
             <!-- Dual Auth Method Switcher Tabs -->
             <div style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(5, 8, 20, 0.6); padding: 4px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                <button id="auth-tab-pass" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; font-size: 0.88rem; cursor: pointer; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white;">
+                <button id="auth-tab-pass" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; font-size: 0.88rem; cursor: pointer; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white; transition: all 0.2s ease;">
                     🔑 Master Password
                 </button>
-                <button id="auth-tab-otp" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; font-size: 0.88rem; cursor: pointer; background: transparent; color: #9ca3af;">
+                <button id="auth-tab-otp" type="button" style="flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; font-family: inherit; font-size: 0.88rem; cursor: pointer; background: transparent; color: #9ca3af; transition: all 0.2s ease;">
                     📱 Telegram Bot OTP
                 </button>
             </div>
             
             <!-- Option A: Master Password Login Form -->
-            <form id="admin-pass-form" style="display: flex; flex-direction: column; gap: 14px;">
+            <form id="admin-pass-form" class="auth-form">
                 <div class="form-group" style="text-align: left;">
                     <label for="login-admin-pass" style="font-size: 0.83rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">Admin Master Password / Key</label>
                     <input type="password" id="login-admin-pass" placeholder="Enter Admin Password..." autocomplete="off" style="padding: 13px; font-size: 0.95rem;">
@@ -48,7 +63,7 @@
             </form>
 
             <!-- Option B: Telegram Bot OTP Login Form -->
-            <form id="admin-otp-form" class="hidden" style="display: flex; flex-direction: column; gap: 14px;">
+            <form id="admin-otp-form" class="auth-form hidden">
                 <div class="form-group" style="text-align: center;">
                     <button id="btn-request-otp" type="button" class="btn btn-secondary" style="width: 100%; background: linear-gradient(135deg, #0088cc, #24a1de); color: white; padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;">
                         📱 Send 6-Digit OTP to Telegram Bot
@@ -57,7 +72,7 @@
 
                 <div class="form-group" style="text-align: left;">
                     <label for="login-admin-otp" style="font-size: 0.83rem; color: #9ca3af; font-weight: 500; margin-bottom: 6px; display: block;">6-Digit Telegram OTP</label>
-                    <input type="text" id="login-admin-otp" placeholder="e.g. 749201" maxlength="6" autocomplete="off" style="padding: 13px; font-size: 1.1rem; text-align: center; letter-spacing: 4px; font-family: 'JetBrains Mono', monospace;">
+                    <input type="text" id="login-admin-otp" placeholder="──────" maxlength="6" autocomplete="off" style="padding: 13px; font-size: 1.1rem; text-align: center; letter-spacing: 6px; font-family: 'JetBrains Mono', monospace;">
                 </div>
                 
                 <button id="btn-submit-otp" type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); padding: 13px; font-size: 0.95rem; font-weight: 600;">
@@ -93,7 +108,7 @@
             const errorMsg = document.getElementById('login-error-msg');
             const otpInfoBanner = document.getElementById('otp-info-banner');
 
-            // Tab Switching
+            // Tab Switching - Strict visibility toggle
             tabPass.addEventListener('click', () => {
                 tabPass.style.background = 'linear-gradient(135deg, #8b5cf6, #3b82f6)';
                 tabPass.style.color = 'white';
@@ -183,7 +198,7 @@
                     const secs = String(remaining % 60).padStart(2, '0');
 
                     if (remaining > 0) {
-                        otpInfoBanner.innerHTML = `📱 Real OTP sent to Telegram Bot! <strong style="color: #facc15; font-family: monospace;">⏳ Expires in ${mins}:${secs}</strong>`;
+                        otpInfoBanner.innerHTML = `📱 OTP sent to Bot! <strong style="color: #facc15; font-family: monospace;">⏳ Expires in ${mins}:${secs}</strong>`;
                         btnRequestOtp.innerText = `⏳ Resend OTP in ${mins}:${secs}`;
                         otpInfoBanner.style.background = 'rgba(0, 136, 204, 0.15)';
                         otpInfoBanner.style.color = '#38bdf8';
