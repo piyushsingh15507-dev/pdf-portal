@@ -2088,15 +2088,29 @@ def handle_admin_add_custom_pdf(self, data):
     if "custom_pdfs" not in info:
         info["custom_pdfs"] = []
 
-    info["custom_pdfs"].append({
-        "title": title,
-        "folder_path": folder_path or "Main Directory",
-        "url": url,
-        "content_id": f"custom_{int(time.time() * 1000)}"
-    })
+    # Check if PDF title already exists under this passcode (Smart Upsert)
+    existing = None
+    for pdf in info["custom_pdfs"]:
+        if pdf.get("title", "").strip().lower() == title.lower():
+            existing = pdf
+            break
+
+    if existing:
+        existing["url"] = url
+        existing["folder_path"] = folder_path or "Main Directory"
+        msg = f"🔄 Updated existing PDF '{title}' URL for passcode {code}!"
+    else:
+        info["custom_pdfs"].append({
+            "title": title,
+            "folder_path": folder_path or "Main Directory",
+            "url": url,
+            "content_id": f"custom_{int(time.time() * 1000)}"
+        })
+        msg = f"✨ Added new PDF '{title}' to passcode {code}."
+
     info["type"] = "custom"
     save_db(db)
-    self.send_json({"success": True, "message": f"PDF '{title}' added to passcode {code}."})
+    self.send_json({"success": True, "message": msg})
 
 def handle_admin_delete_custom_pdf(self, data):
     code = data.get("code", "").strip().upper()
@@ -2142,14 +2156,28 @@ def handle_admin_add_custom_video(self, data):
     if "custom_videos" not in info:
         info["custom_videos"] = []
 
-    info["custom_videos"].append({
-        "title": title,
-        "folder_path": folder_path or "Main Lectures",
-        "url": url,
-        "video_id": f"vid_{int(time.time() * 1000)}"
-    })
+    # Check if Video title already exists under this passcode (Smart Upsert)
+    existing = None
+    for vid in info["custom_videos"]:
+        if vid.get("title", "").strip().lower() == title.lower():
+            existing = vid
+            break
+
+    if existing:
+        existing["url"] = url
+        existing["folder_path"] = folder_path or "Main Lectures"
+        msg = f"🔄 Updated existing Video '{title}' URL for passcode {code}!"
+    else:
+        info["custom_videos"].append({
+            "title": title,
+            "folder_path": folder_path or "Main Lectures",
+            "url": url,
+            "video_id": f"vid_{int(time.time() * 1000)}"
+        })
+        msg = f"✨ Added new Video '{title}' to passcode {code}."
+
     save_db(db)
-    self.send_json({"success": True, "message": f"Video '{title}' added to passcode {code}."})
+    self.send_json({"success": True, "message": msg})
 
 def handle_admin_delete_custom_video(self, data):
     code = data.get("code", "").strip().upper()

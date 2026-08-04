@@ -553,6 +553,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 scopeBadge = '<span style="background:rgba(236,72,153,0.2); color:#f472b6; font-size:0.7rem; padding:1px 6px; border-radius:3px; margin-left:4px;">🎥 Video Only</span>';
             }
 
+            let pdfItemsHtml = '';
+            if (details.custom_pdfs && details.custom_pdfs.length > 0) {
+                pdfItemsHtml = details.custom_pdfs.map((pdf, idx) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; margin-top:2px; font-size:0.75rem;">
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;" title="${escapeHtml(pdf.url)}">📄 ${escapeHtml(pdf.title)}</span>
+                        <button class="btn-del-custom-pdf" data-code="${escapeHtml(code)}" data-index="${idx}" style="background:none; border:none; color:#f87171; cursor:pointer; font-size:0.75rem; padding:0 4px;" title="Delete this PDF">✖</button>
+                    </div>
+                `).join('');
+            }
+
+            let vidItemsHtml = '';
+            if (details.custom_videos && details.custom_videos.length > 0) {
+                vidItemsHtml = details.custom_videos.map((vid, idx) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; margin-top:2px; font-size:0.75rem;">
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;" title="${escapeHtml(vid.url)}">🎥 ${escapeHtml(vid.title)}</span>
+                        <button class="btn-del-custom-vid" data-code="${escapeHtml(code)}" data-index="${idx}" style="background:none; border:none; color:#f87171; cursor:pointer; font-size:0.75rem; padding:0 4px;" title="Delete this Video">✖</button>
+                    </div>
+                `).join('');
+            }
+
             html += `
                 <tr>
                     <td>
@@ -564,17 +584,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>
                         <div style="display:flex; gap:4px; flex-direction:column;">
                             <span style="background:rgba(139,92,246,0.2); color:#c084fc; padding:2px 8px; border-radius:4px; font-size:0.8rem;">📄 ${pdfCount} PDFs</span>
-                            <span style="background:rgba(236,72,153,0.2); color:#f472b6; padding:2px 8px; border-radius:4px; font-size:0.8rem;">🎥 ${vidCount} Videos</span>
+                            ${pdfItemsHtml}
+                            <span style="background:rgba(236,72,153,0.2); color:#f472b6; padding:2px 8px; border-radius:4px; font-size:0.8rem; margin-top:4px;">🎥 ${vidCount} Videos</span>
+                            ${vidItemsHtml}
                         </div>
                     </td>
                     <td style="text-align: center;">
                         <button class="btn btn-danger delete-btn btn-delete-code" data-code="${escapeHtml(code)}" style="padding: 6px 12px; font-size: 0.8rem;">
-                            🗑️ Delete
+                            🗑️ Delete Passcode
                         </button>
                     </td>
                 </tr>`;
         });
         passcodesTbody.innerHTML = html;
+
+        document.querySelectorAll('.btn-del-custom-pdf').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const code = btn.getAttribute('data-code');
+                const idx = btn.getAttribute('data-index');
+                if (confirm(`Delete this PDF from passcode '${code}'?`)) {
+                    await fetch('/api/admin/delete-custom-pdf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': currentAdminSecret },
+                        body: JSON.stringify({ code, index: idx })
+                    });
+                    loadAdminData();
+                }
+            });
+        });
+
+        document.querySelectorAll('.btn-del-custom-vid').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const code = btn.getAttribute('data-code');
+                const idx = btn.getAttribute('data-index');
+                if (confirm(`Delete this Video from passcode '${code}'?`)) {
+                    await fetch('/api/admin/delete-custom-video', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': currentAdminSecret },
+                        body: JSON.stringify({ code, index: idx })
+                    });
+                    loadAdminData();
+                }
+            });
+        });
 
         document.querySelectorAll('.btn-delete-code').forEach(btn => {
             btn.addEventListener('click', async () => {
