@@ -267,13 +267,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).catch(() => {});
                 }
 
+                const formattedUrl = formatEmbedVideoUrl(videoUrl);
+
                 if (videoModalTitle) videoModalTitle.innerHTML = `🎥 ${escapeHtml(title)}`;
                 if (videoIframe) {
-                    videoIframe.src = videoUrl;
+                    videoIframe.src = formattedUrl;
                 }
                 if (videoPlayerModal) videoPlayerModal.classList.remove('hidden');
             });
         });
+    }
+
+    function formatEmbedVideoUrl(rawUrl) {
+        if (!rawUrl) return '';
+        let url = rawUrl.trim();
+
+        const ytRegex = /(?:youtube\.com\/(?:watch\?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+        const match = url.match(ytRegex);
+
+        if (match && match[1]) {
+            const videoId = match[1];
+            return `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0&iv_load_policy=3&controls=1&enablejsapi=1`;
+        }
+
+        return url;
     }
 
     if (videoSearchInput) {
