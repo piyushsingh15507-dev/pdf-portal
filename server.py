@@ -1719,10 +1719,11 @@ def send_real_telegram_otp(chat_id, otp_code, bot_token=None):
     """
     Sends instant Telegram Bot OTP notification to Telegram App.
     """
+    db = load_db()
     if not bot_token:
-        bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        bot_token = db.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE")
     if not chat_id:
-        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+        chat_id = db.get("telegram_chat_id") or os.environ.get("TELEGRAM_CHAT_ID", "8733515419")
 
     if not bot_token or not chat_id:
         return False, "Telegram Bot Token or Chat ID not configured."
@@ -1870,12 +1871,12 @@ def handle_admin_request_otp(self, data):
     }
     save_db(db)
     
-    tg_token = db.get("telegram_bot_token", "").strip()
-    tg_chat = db.get("telegram_chat_id", "").strip()
+    tg_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
+    tg_chat = (db.get("telegram_chat_id") or "8733515419").strip()
     
     tg_sent, tg_msg = send_real_telegram_otp(tg_chat, otp_code, tg_token)
     
-    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] OTP generated: {otp_code} | Status: {tg_msg}\n")
+    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] Chat ID: {tg_chat} | OTP generated: {otp_code} | Status: {tg_msg}\n")
     
     if tg_sent:
         self.send_json({
@@ -1885,7 +1886,7 @@ def handle_admin_request_otp(self, data):
     else:
         self.send_json({
             "success": False,
-            "error": "Telegram Bot Token or Chat ID not configured. Please login using Master Password and configure Telegram Bot in Admin Settings."
+            "error": f"Telegram Bot dispatch failed: {tg_msg}"
         }, 400)
 
 def handle_admin_save_telegram_gateway(self, data):
