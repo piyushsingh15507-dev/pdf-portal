@@ -407,6 +407,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const waPhoneIdInput = document.getElementById('wa-phone-id');
+    const waAccessTokenInput = document.getElementById('wa-access-token');
+    const waVerifyTokenInput = document.getElementById('wa-verify-token');
+    const btnSaveWaGateway = document.getElementById('btn-save-wa-gateway');
+
+    if (btnSaveWaGateway) {
+        btnSaveWaGateway.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const phoneId = waPhoneIdInput ? waPhoneIdInput.value.trim() : '';
+            const token = waAccessTokenInput ? waAccessTokenInput.value.trim() : '';
+            const verifyToken = waVerifyTokenInput ? waVerifyTokenInput.value.trim() : 'MY_SECRET_WHATSAPP_TOKEN_2026';
+            
+            if (!phoneId || !token) {
+                alert('Please enter both WhatsApp Phone Number ID and Permanent Access Token.');
+                return;
+            }
+
+            btnSaveWaGateway.disabled = true;
+            btnSaveWaGateway.innerText = 'Saving...';
+
+            try {
+                const res = await fetch('/api/admin/save-whatsapp-gateway', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret 
+                    },
+                    body: JSON.stringify({ phone_number_id: phoneId, access_token: token, verify_token: verifyToken })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('Meta WhatsApp Gateway Settings saved successfully! Real WhatsApp OTPs will now be sent directly to student & admin WhatsApp apps.');
+                } else {
+                    alert(`Failed to save WhatsApp settings: ${data.error}`);
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                btnSaveWaGateway.disabled = false;
+                btnSaveWaGateway.innerText = '💬 Save WhatsApp Gateway Settings';
+            }
+        });
+    }
+
     const smtpEmailInput = document.getElementById('smtp-email');
     const smtpPassInput = document.getElementById('smtp-pass');
     const btnSaveEmailGateway = document.getElementById('btn-save-email-gateway');

@@ -252,6 +252,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_save_email_gateway(data)
         elif path == "/api/admin/save-telegram-gateway":
             self.handle_admin_save_telegram_gateway(data)
+        elif path == "/api/admin/save-whatsapp-gateway":
+            self.handle_admin_save_whatsapp_gateway(data)
         elif path == "/api/whatsapp/webhook":
             self.handle_whatsapp_webhook_event(data)
         elif path == "/api/admin/save-token":
@@ -1752,12 +1754,13 @@ def send_real_whatsapp_otp(target_phone, otp_code, access_token=None, phone_numb
     """
     Sends real WhatsApp OTP message using Meta Cloud API.
     """
+    db = load_db()
     if not access_token:
-        access_token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+        access_token = db.get("whatsapp_access_token") or os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
     if not phone_number_id:
-        phone_number_id = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+        phone_number_id = db.get("whatsapp_phone_number_id") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
         
-    cleaned_phone = re.sub(r'[^\d]', '', target_phone)
+    cleaned_phone = re.sub(r'[^\d]', '', str(target_phone))
     if len(cleaned_phone) == 10:
         cleaned_phone = "91" + cleaned_phone
         
@@ -1818,6 +1821,21 @@ def handle_whatsapp_webhook_verification(self, parsed_url):
 def handle_whatsapp_webhook_event(self, data):
     print(f"\n[WHATSAPP WEBHOOK EVENT] Received: {json.dumps(data)}\n")
     self.send_json({"status": "received"})
+
+def handle_admin_save_whatsapp_gateway(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+    phone_id = data.get("phone_number_id", "").strip()
+    token = data.get("access_token", "").strip()
+    verify_token = data.get("verify_token", "").strip() or "MY_SECRET_WHATSAPP_TOKEN_2026"
+    
+    db = load_db()
+    db["whatsapp_phone_number_id"] = phone_id
+    db["whatsapp_access_token"] = token
+    db["whatsapp_verify_token"] = verify_token
+    save_db(db)
+    self.send_json({"success": True, "message": "Meta WhatsApp Gateway Settings saved successfully!"})
 
 def handle_admin_request_otp(self, data):
     otp_code = str(random.randint(100000, 999999))
@@ -2399,6 +2417,7 @@ APIHandler.handle_admin_change_secret = handle_admin_change_secret
 APIHandler.handle_admin_save_sms_key = handle_admin_save_sms_key
 APIHandler.handle_admin_save_email_gateway = handle_admin_save_email_gateway
 APIHandler.handle_admin_save_telegram_gateway = handle_admin_save_telegram_gateway
+APIHandler.handle_admin_save_whatsapp_gateway = handle_admin_save_whatsapp_gateway
 APIHandler.handle_whatsapp_webhook_verification = handle_whatsapp_webhook_verification
 APIHandler.handle_whatsapp_webhook_event = handle_whatsapp_webhook_event
 APIHandler.handle_admin_get_data = handle_admin_get_data
