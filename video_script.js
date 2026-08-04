@@ -267,8 +267,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).catch(() => {});
                 }
 
-                if (videoModalTitle) videoModalTitle.innerText = `🎥 ${title}`;
-                if (videoIframe) videoIframe.src = videoUrl;
+                if (videoModalTitle) videoModalTitle.innerHTML = `🎥 ${escapeHtml(title)}`;
+                if (videoIframe) {
+                    videoIframe.src = videoUrl;
+                }
                 if (videoPlayerModal) videoPlayerModal.classList.remove('hidden');
             });
         });
