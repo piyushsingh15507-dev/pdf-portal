@@ -1861,7 +1861,46 @@ def handle_admin_save_whatsapp_gateway(self, data):
     save_db(db)
     self.send_json({"success": True, "message": "Meta WhatsApp Gateway Settings saved successfully!"})
 
+def check_and_increment_otp_rate_limit(client_ip, max_limit=5, window_sec=900):
+    """
+    Modular Rate Limiter Engine for OTP Requests.
+    Allows MAX 5 OTP requests per client IP within 15 minutes.
+    Returns (is_allowed, msg, remaining_or_wait_mins)
+    """
+    db = load_db()
+    if "otp_rate_limits" not in db or not isinstance(db["otp_rate_limits"], dict):
+        db["otp_rate_limits"] = {}
+        
+    now = time.time()
+    ip_data = db["otp_rate_limits"].get(client_ip, {"count": 0, "window_start": now})
+    
+    if now - ip_data.get("window_start", 0) > window_sec:
+        ip_data = {"count": 0, "window_start": now}
+        
+    if ip_data["count"] >= max_limit:
+        time_left_sec = int(window_sec - (now - ip_data["window_start"]))
+        mins_left = max(1, math.ceil(time_left_sec / 60))
+        return False, f"⚠️ OTP Limit Reached (Max 5 OTPs per 15 mins). Please wait {mins_left} min(s).", mins_left
+
+    ip_data["count"] += 1
+    db["otp_rate_limits"][client_ip] = ip_data
+    save_db(db)
+    
+    remaining = max_limit - ip_data["count"]
+    return True, f"{remaining} attempts remaining", remaining
+
 def handle_admin_request_otp(self, data):
+    client_ip = get_client_ip(self)
+    
+    allowed, rate_msg, rem_count = check_and_increment_otp_rate_limit(client_ip, max_limit=5, window_sec=900)
+    if not allowed:
+        self.send_json({
+            "success": False,
+            "error": rate_msg,
+            "rate_limited": True
+        }, 429)
+        return
+
     otp_code = str(random.randint(100000, 999999))
     
     db = load_db()
@@ -1876,12 +1915,12 @@ def handle_admin_request_otp(self, data):
     
     tg_sent, tg_msg = send_real_telegram_otp(tg_chat, otp_code, tg_token)
     
-    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] Chat ID: {tg_chat} | OTP generated: {otp_code} | Status: {tg_msg}\n")
+    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] IP: {client_ip} | Chat ID: {tg_chat} | OTP: {otp_code} | Remaining Attempts: {rem_count} | Status: {tg_msg}\n")
     
     if tg_sent:
         self.send_json({
             "success": True, 
-            "message": "📱 Real Security OTP dispatched to your Telegram App via Bot! Please check your Telegram Bot."
+            "message": f"📱 OTP sent to Bot! ({rem_count} requests remaining)"
         })
     else:
         self.send_json({
