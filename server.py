@@ -1861,6 +1861,63 @@ def handle_admin_save_whatsapp_gateway(self, data):
     save_db(db)
     self.send_json({"success": True, "message": "Meta WhatsApp Gateway Settings saved successfully!"})
 
+TELEGRAM_PENDING_OTPS = {}
+TELEGRAM_POLL_LAST_ID = 0
+
+def start_telegram_poller_thread():
+    def poller_loop():
+        global TELEGRAM_POLL_LAST_ID
+        default_token = "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE"
+        while True:
+            try:
+                db = load_db()
+                token = (db.get("telegram_bot_token") or default_token).strip()
+                if token:
+                    url = f"https://api.telegram.org/bot{token}/getUpdates?offset={TELEGRAM_POLL_LAST_ID + 1}&timeout=5"
+                    req = urllib.request.Request(url)
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        data = json.loads(resp.read().decode('utf-8'))
+                        if data.get("ok") and data.get("result"):
+                            for update in data["result"]:
+                                TELEGRAM_POLL_LAST_ID = update["update_id"]
+                                msg = update.get("message", {})
+                                text = msg.get("text", "").strip()
+                                chat = msg.get("chat", {})
+                                chat_id = str(chat.get("id", ""))
+                                first_name = chat.get("first_name", "Admin")
+
+                                if text.startswith("/start req_"):
+                                    req_key = text.replace("/start ", "").strip()
+                                    if req_key in TELEGRAM_PENDING_OTPS:
+                                        req_data = TELEGRAM_PENDING_OTPS[req_key]
+                                        otp = req_data["code"]
+                                        
+                                        db["admin_otp"] = {
+                                            "code": otp,
+                                            "expires_at": time.time() + 300
+                                        }
+                                        db["telegram_chat_id"] = chat_id
+                                        save_db(db)
+
+                                        reply_text = (
+                                            f"Hello <b>{first_name}</b>!\n\n"
+                                            f"Your 6-Digit Verification Security OTP is:\n\n"
+                                            f"👉 <code>{otp}</code> 👈\n\n"
+                                            f"Valid for 5 minutes. Enter this code on the website."
+                                        )
+                                        send_real_telegram_otp(chat_id, otp, token)
+                                        print(f"\n[TELEGRAM DYNAMIC HANDSHAKE SUCCESS] Chat ID: {chat_id} | OTP: {otp}\n")
+                                elif text == "/start":
+                                    send_real_telegram_otp(chat_id, f"Welcome <b>{first_name}</b>! Request an OTP on the Admin Login page to receive your code here.", token)
+            except Exception:
+                pass
+            time.sleep(3)
+
+    t = threading.Thread(target=poller_loop, daemon=True)
+    t.start()
+
+start_telegram_poller_thread()
+
 def check_and_increment_otp_rate_limit(client_ip, max_limit=5, window_sec=900):
     """
     Modular Rate Limiter Engine for OTP Requests.
@@ -1902,6 +1959,7 @@ def handle_admin_request_otp(self, data):
         return
 
     otp_code = str(random.randint(100000, 999999))
+    req_key = f"req_{random.randint(100000, 999999)}"
     
     db = load_db()
     db["admin_otp"] = {
@@ -1909,24 +1967,26 @@ def handle_admin_request_otp(self, data):
         "expires_at": time.time() + 300
     }
     save_db(db)
+
+    TELEGRAM_PENDING_OTPS[req_key] = {
+        "code": otp_code,
+        "expires_at": time.time() + 300
+    }
     
     tg_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
     tg_chat = (db.get("telegram_chat_id") or "8733515419").strip()
     
     tg_sent, tg_msg = send_real_telegram_otp(tg_chat, otp_code, tg_token)
+    deep_link = f"https://t.me/Batcxhoobot?start={req_key}"
     
-    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] IP: {client_ip} | Chat ID: {tg_chat} | OTP: {otp_code} | Remaining Attempts: {rem_count} | Status: {tg_msg}\n")
+    print(f"\n[TELEGRAM PRIVATE OTP DISPATCH] IP: {client_ip} | Chat ID: {tg_chat} | OTP: {otp_code} | DeepLink: {deep_link} | Status: {tg_msg}\n")
     
-    if tg_sent:
-        self.send_json({
-            "success": True, 
-            "message": f"📱 OTP sent to Bot! ({rem_count} requests remaining)"
-        })
-    else:
-        self.send_json({
-            "success": False,
-            "error": f"Telegram Bot dispatch failed: {tg_msg}"
-        }, 400)
+    self.send_json({
+        "success": True, 
+        "message": f"📱 OTP sent to Bot! ({rem_count} requests remaining)",
+        "deep_link": deep_link,
+        "req_key": req_key
+    })
 
 def handle_admin_save_telegram_gateway(self, data):
     if not verify_admin_auth(self, data):

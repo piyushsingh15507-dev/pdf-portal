@@ -65,9 +65,12 @@
             <!-- Option B: Telegram Bot OTP Login Form -->
             <form id="admin-otp-form" class="auth-form hidden">
                 <div class="form-group" style="text-align: center;">
-                    <button id="btn-request-otp" type="button" class="btn btn-secondary" style="width: 100%; background: linear-gradient(135deg, #0088cc, #24a1de); color: white; padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;">
+                    <button id="btn-request-otp" type="button" class="btn btn-secondary" style="width: 100%; background: linear-gradient(135deg, #0088cc, #24a1de); color: white; padding: 13px; font-size: 0.95rem; font-weight: 600; border: none; margin-bottom: 10px;">
                         📱 Send 6-Digit OTP to Telegram Bot
                     </button>
+                    <a id="btn-open-bot-link" href="https://t.me/Batcxhoobot" target="_blank" class="btn hidden" style="width: 100%; background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 12px; font-size: 0.92rem; font-weight: 600; text-decoration: none; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                        🔗 Open Telegram Bot (@Batcxhoobot) & Get OTP
+                    </a>
                 </div>
 
                 <div class="form-group" style="text-align: left;">
@@ -234,6 +237,13 @@
                     const data = await res.json();
 
                     if (data.success) {
+                        if (data.deep_link) {
+                            const botLinkBtn = document.getElementById('btn-open-bot-link');
+                            if (botLinkBtn) {
+                                botLinkBtn.href = data.deep_link;
+                                botLinkBtn.classList.remove('hidden');
+                            }
+                        }
                         otpInfoBanner.classList.remove('hidden');
                         startOtpCountdown(300); // 5 Minutes
                     } else {
