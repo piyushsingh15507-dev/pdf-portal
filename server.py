@@ -206,6 +206,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_pdf_batch_status()
         elif path == "/api/admin/hls-download-status":
             self.handle_admin_hls_download_status()
+        elif path == "/api/admin/auto-telegram-status":
+            self.handle_admin_auto_telegram_status()
+        elif path == "/api/stream-tg":
+            self.handle_telegram_stream_proxy(parsed_url)
         elif path.startswith("/downloads/"):
             filename = urllib.parse.unquote(path.replace("/downloads/", ""))
             file_path = os.path.join(WORKSPACE_DIR, "downloads", filename)
@@ -257,6 +261,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_pdf_batch_download(data)
         elif path == "/api/admin/download-hls-stream":
             self.handle_admin_download_hls_stream(data)
+        elif path == "/api/admin/auto-telegram-stream":
+            self.handle_admin_auto_telegram_stream(data)
         elif path == "/api/admin/request-otp":
             self.handle_admin_request_otp(data)
         elif path == "/api/admin/auth":
@@ -1327,6 +1333,218 @@ def handle_admin_download_hls_stream(self, data):
 def handle_admin_hls_download_status(self):
     with hls_download_lock:
         self.send_json({"success": True, "status": hls_download_status})
+
+# ==================== AUTOMATED TELEGRAM CLOUD STREAM BRIDGE ====================
+
+tg_pipeline_lock = threading.Lock()
+tg_pipeline_status = {
+    "running": False,
+    "percent": 0,
+    "status_text": "Idle",
+    "file_id": "",
+    "stream_url": "",
+    "error": ""
+}
+
+def upload_file_to_telegram_bot(file_path, bot_token, chat_id):
+    """
+    Uploads a video file to Telegram Bot via multipart/form-data.
+    Returns (success: bool, file_id: str, err: str)
+    """
+    try:
+        boundary = f"----WebKitFormBoundary{random.randint(10000000, 99999999)}"
+        url = f"https://api.telegram.org/bot{bot_token.strip()}/sendVideo"
+        
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+
+        body = bytearray()
+        
+        # chat_id field
+        body.extend(f"--{boundary}\r\n".encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="chat_id"\r\n\r\n'.encode('utf-8'))
+        body.extend(f"{chat_id}\r\n".encode('utf-8'))
+
+        # caption field
+        body.extend(f"--{boundary}\r\n".encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="caption"\r\n\r\n'.encode('utf-8'))
+        body.extend(f"☁️ Cloud Video: {filename}\r\n".encode('utf-8'))
+
+        # video file field
+        body.extend(f"--{boundary}\r\n".encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="video"; filename="{filename}"\r\n'.encode('utf-8'))
+        body.extend(f"Content-Type: video/mp4\r\n\r\n".encode('utf-8'))
+        body.extend(file_bytes)
+        body.extend(f"\r\n--{boundary}--\r\n".encode('utf-8'))
+
+        req = urllib.request.Request(url, data=bytes(body), headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}"
+        })
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=60) as resp:
+            res_data = json.loads(resp.read().decode('utf-8'))
+            if res_data.get("ok"):
+                msg = res_data.get("result", {})
+                video_obj = msg.get("video") or msg.get("document") or {}
+                file_id = video_obj.get("file_id")
+                if file_id:
+                    return True, file_id, ""
+                return False, "", "file_id missing in Telegram response."
+            return False, "", res_data.get("description", "Telegram upload failed")
+    except Exception as e:
+        return False, "", str(e)
+
+def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectures"):
+    global tg_pipeline_status
+    with tg_pipeline_lock:
+        tg_pipeline_status = {
+            "running": True,
+            "percent": 10,
+            "status_text": "⏳ Step 1: Downloading stream to server...",
+            "file_id": "",
+            "stream_url": "",
+            "error": ""
+        }
+
+    def _pipeline():
+        global tg_pipeline_status
+        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip() or f"Video_{int(time.time())}"
+        downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        temp_file = os.path.join(downloads_dir, f"{safe_title}.mp4")
+
+        try:
+            # Step 1: Download stream
+            fetch_hls_native_python(url, temp_file)
+            
+            with tg_pipeline_lock:
+                tg_pipeline_status["percent"] = 55
+                tg_pipeline_status["status_text"] = "⚡ Step 2: Uploading to Telegram Cloud Bot (@Batcxhoobot)..."
+
+            # Step 2: Upload to Telegram
+            db = load_db()
+            bot_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
+            chat_id = (db.get("telegram_chat_id") or "8733515419").strip()
+
+            success, file_id, err = upload_file_to_telegram_bot(temp_file, bot_token, chat_id)
+
+            # Cleanup temp file immediately to save disk space!
+            if os.path.exists(temp_file):
+                try: os.remove(temp_file)
+                except Exception: pass
+
+            if not success or not file_id:
+                raise Exception(f"Telegram upload error: {err}")
+
+            # Step 3: Stream URL & Auto Add to Course Passcode!
+            stream_url = f"/api/stream-tg?file_id={file_id}"
+            
+            access_codes = db.get("access_codes", {})
+            if code in access_codes:
+                info = access_codes[code]
+                if "custom_videos" not in info:
+                    info["custom_videos"] = []
+
+                existing = None
+                for vid in info["custom_videos"]:
+                    if vid.get("title", "").strip().lower() == title.lower():
+                        existing = vid
+                        break
+
+                if existing:
+                    existing["url"] = stream_url
+                    existing["folder_path"] = folder_path or "Main Lectures"
+                else:
+                    info["custom_videos"].append({
+                        "title": title,
+                        "folder_path": folder_path or "Main Lectures",
+                        "url": stream_url,
+                        "video_id": f"tg_vid_{int(time.time() * 1000)}"
+                    })
+                save_db(db)
+
+            with tg_pipeline_lock:
+                tg_pipeline_status["running"] = False
+                tg_pipeline_status["percent"] = 100
+                tg_pipeline_status["status_text"] = f"🎉 Success! Uploaded to Telegram Cloud & Added to Passcode '{code}'!"
+                tg_pipeline_status["file_id"] = file_id
+                tg_pipeline_status["stream_url"] = stream_url
+
+        except Exception as e:
+            with tg_pipeline_lock:
+                tg_pipeline_status["running"] = False
+                tg_pipeline_status["error"] = str(e)
+                tg_pipeline_status["status_text"] = f"Pipeline Failed: {e}"
+
+    t = threading.Thread(target=_pipeline, daemon=True)
+    t.start()
+
+def handle_admin_auto_telegram_stream(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+
+    code = data.get("code", "").strip().upper()
+    title = data.get("title", "").strip()
+    url = data.get("url", "").strip()
+    folder_path = data.get("folder_path", "Main Lectures").strip()
+
+    if not code or not title or not url:
+        self.send_json({"success": False, "error": "Passcode, Title, and Stream URL are required."}, 400)
+        return
+
+    with tg_pipeline_lock:
+        if tg_pipeline_status.get("running"):
+            self.send_json({"success": False, "error": "Another upload pipeline is running. Please wait."}, 400)
+            return
+
+    run_auto_telegram_stream_pipeline(code, title, url, folder_path)
+    self.send_json({"success": True, "message": "Automated Telegram Cloud Pipeline started!"})
+
+def handle_admin_auto_telegram_status(self):
+    with tg_pipeline_lock:
+        self.send_json({"success": True, "status": tg_pipeline_status})
+
+def handle_telegram_stream_proxy(self, parsed_url):
+    query = urllib.parse.parse_qs(parsed_url.query)
+    file_id = query.get("file_id", [""])[0]
+
+    if not file_id:
+        self.send_error(400, "file_id is required")
+        return
+
+    db = load_db()
+    bot_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
+
+    try:
+        get_file_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={file_id}"
+        req = urllib.request.Request(get_file_url)
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=8) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if not data.get("ok"):
+                self.send_error(404, "Telegram file not found")
+                return
+            file_path = data.get("result", {}).get("file_path")
+
+        download_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+        
+        s_req = urllib.request.Request(download_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_resp:
+            content_type = s_resp.headers.get("Content-Type", "video/mp4")
+            content_length = s_resp.headers.get("Content-Length")
+            
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            if content_length:
+                self.send_header("Content-Length", content_length)
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+
+            while chunk := s_resp.read(65536):
+                self.wfile.write(chunk)
+    except Exception as e:
+        print(f"Telegram stream proxy error: {e}")
+        self.send_error(500, f"Stream proxy error: {e}")
 
 # ==================== PDF DIRECT DOWNLOADER HELPERS ====================
 
@@ -2618,6 +2836,9 @@ def handle_student_click(self, data):
 
 APIHandler.handle_admin_download_hls_stream = handle_admin_download_hls_stream
 APIHandler.handle_admin_hls_download_status = handle_admin_hls_download_status
+APIHandler.handle_admin_auto_telegram_stream = handle_admin_auto_telegram_stream
+APIHandler.handle_admin_auto_telegram_status = handle_admin_auto_telegram_status
+APIHandler.handle_telegram_stream_proxy = handle_telegram_stream_proxy
 APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret

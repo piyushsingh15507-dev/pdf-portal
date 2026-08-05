@@ -248,7 +248,49 @@
                     </div>
                 </div>
 
-                <!-- 7. Change Admin Secret Password -->
+                <!-- 7. Telegram Cloud Video Auto-Uploader & Streamer -->
+                <div class="card control-card panel-item" data-panel-id="panel-tg-cloud-uploader">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">☁️ Telegram Cloud Stream Pipeline</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Auto-downloads stream, uploads to Telegram Cloud Bot (@Batcxhoobot) & adds to Course Passcode!</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="tg-pipe-code">Select Course Passcode</label>
+                            <input type="text" id="tg-pipe-code" placeholder="e.g. IISER" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="tg-pipe-title">Video / Lecture Title</label>
+                            <input type="text" id="tg-pipe-title" placeholder="e.g. Kinematics_Lecture_1" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="tg-pipe-url">Stream URL (.m3u8 or MP4)</label>
+                            <input type="text" id="tg-pipe-url" placeholder="e.g. https://cp-cdn-in3.100ms.live/.../stream.m3u8" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="tg-pipe-folder">Folder Path (Optional)</label>
+                            <input type="text" id="tg-pipe-folder" placeholder="e.g. Physics / Kinematics" autocomplete="off">
+                        </div>
+                        <button id="btn-run-tg-pipe" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white; width: 100%;">
+                            ⚡ Auto-Upload to Telegram Cloud & Add to Course
+                        </button>
+                    </div>
+                    <div id="tg-pipe-status-box" class="hidden" style="margin-top: 12px; padding: 12px; background: rgba(15, 23, 42, 0.7); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span id="tg-pipe-status-text" style="font-size: 0.85rem; color: #a78bfa; font-weight: 600;">⏳ Pipeline Starting...</span>
+                            <span id="tg-pipe-percent" style="font-size: 0.85rem; color: #60a5fa; font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                            <div id="tg-pipe-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #06b6d4); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. Change Admin Secret Password -->
                 <div class="card control-card panel-item" data-panel-id="panel-password">
                     <div class="panel-card-header">
                         <h3 class="section-title" style="margin: 0;">🔒 Change Admin Master Password</h3>

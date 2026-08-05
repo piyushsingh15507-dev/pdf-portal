@@ -491,6 +491,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1500);
     }
 
+    const tgPipeCodeInput = document.getElementById('tg-pipe-code');
+    const tgPipeTitleInput = document.getElementById('tg-pipe-title');
+    const tgPipeUrlInput = document.getElementById('tg-pipe-url');
+    const tgPipeFolderInput = document.getElementById('tg-pipe-folder');
+    const btnRunTgPipe = document.getElementById('btn-run-tg-pipe');
+    const tgPipeStatusBox = document.getElementById('tg-pipe-status-box');
+    const tgPipeStatusText = document.getElementById('tg-pipe-status-text');
+    const tgPipePercentText = document.getElementById('tg-pipe-percent');
+    const tgPipeProgressBar = document.getElementById('tg-pipe-progress-bar');
+
+    let tgPipePollInterval = null;
+
+    if (btnRunTgPipe) {
+        btnRunTgPipe.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const code = tgPipeCodeInput ? tgPipeCodeInput.value.trim().toUpperCase() : '';
+            const title = tgPipeTitleInput ? tgPipeTitleInput.value.trim() : '';
+            const url = tgPipeUrlInput ? tgPipeUrlInput.value.trim() : '';
+            const folder_path = tgPipeFolderInput ? tgPipeFolderInput.value.trim() : 'Main Lectures';
+
+            if (!code || !title || !url) {
+                alert('Please fill in Course Passcode, Video Title, and Stream URL.');
+                return;
+            }
+
+            btnRunTgPipe.disabled = true;
+            btnRunTgPipe.innerText = 'Starting Automated Telegram Pipeline...';
+            if (tgPipeStatusBox) tgPipeStatusBox.classList.remove('hidden');
+
+            try {
+                const res = await fetch('/api/admin/auto-telegram-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret
+                    },
+                    body: JSON.stringify({ code, title, url, folder_path })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    pollTgPipeStatus();
+                } else {
+                    alert(`Pipeline error: ${data.error}`);
+                    btnRunTgPipe.disabled = false;
+                    btnRunTgPipe.innerText = '⚡ Auto-Upload to Telegram Cloud & Add to Course';
+                }
+            } catch (err) {
+                alert(`Network error: ${err.message}`);
+                btnRunTgPipe.disabled = false;
+                btnRunTgPipe.innerText = '⚡ Auto-Upload to Telegram Cloud & Add to Course';
+            }
+        });
+    }
+
+    function pollTgPipeStatus() {
+        if (tgPipePollInterval) clearInterval(tgPipePollInterval);
+        tgPipePollInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/admin/auto-telegram-status');
+                const data = await res.json();
+
+                if (data.success && data.status) {
+                    const st = data.status;
+                    if (tgPipeStatusText) tgPipeStatusText.innerText = st.status_text || 'Processing...';
+                    if (tgPipePercentText) tgPipePercentText.innerText = `${st.percent || 0}%`;
+                    if (tgPipeProgressBar) tgPipeProgressBar.style.width = `${st.percent || 0}%`;
+
+                    if (!st.running) {
+                        clearInterval(tgPipePollInterval);
+                        if (btnRunTgPipe) {
+                            btnRunTgPipe.disabled = false;
+                            btnRunTgPipe.innerText = '⚡ Auto-Upload to Telegram Cloud & Add to Course';
+                        }
+                        if (st.percent === 100) {
+                            alert('🎉 Video successfully downloaded, uploaded to Telegram Cloud, and added to Course!');
+                            loadAdminData();
+                        }
+                    }
+                }
+            } catch (err) {}
+        }, 1500);
+    }
+
     const smtpEmailInput = document.getElementById('smtp-email');
     const smtpPassInput = document.getElementById('smtp-pass');
     const btnSaveEmailGateway = document.getElementById('btn-save-email-gateway');
