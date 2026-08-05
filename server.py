@@ -1212,17 +1212,28 @@ def fetch_hls_native_python(stream_url, output_file):
     with urllib.request.urlopen(req, context=SSL_CTX, timeout=12) as res:
         playlist_text = res.read().decode('utf-8')
 
+    lines = [l.strip() for l in playlist_text.splitlines() if l.strip()]
+    
+    # Resolves variant master playlists (child m3u8 resolution)
+    child_m3u8 = None
+    for l in lines:
+        if not l.startswith('#') and l.endswith('.m3u8'):
+            child_m3u8 = urllib.parse.urljoin(base_url, l)
+            break
+
+    if child_m3u8:
+        return fetch_hls_native_python(child_m3u8, output_file)
+
     segment_urls = []
-    for line in playlist_text.splitlines():
-        line = line.strip()
-        if line and not line.startswith('#'):
+    for line in lines:
+        if not line.startswith('#'):
             if line.startswith('http'):
                 segment_urls.append(line)
             else:
                 segment_urls.append(urllib.parse.urljoin(base_url, line))
 
     if not segment_urls:
-        raise Exception("No valid video segments found in playlist.")
+        raise Exception("No valid video segments found in stream playlist.")
 
     total = len(segment_urls)
     segments_data = [None] * total
@@ -1273,42 +1284,22 @@ def start_hls_stream_download(stream_url, title):
 
     def _worker():
         global hls_download_status
+        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()
+        if not safe_title:
+            safe_title = f"Live_Stream_{int(time.time())}"
+        filename = f"{safe_title}.mp4"
+
+        downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        output_file = os.path.join(downloads_dir, filename)
+
         try:
-            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()
-            if not safe_title:
-                safe_title = f"Live_Stream_{int(time.time())}"
-            filename = f"{safe_title}.mp4"
-
-            downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
-            os.makedirs(downloads_dir, exist_ok=True)
-            output_file = os.path.join(downloads_dir, filename)
-
-            cmd = ["ffmpeg", "-y", "-i", stream_url, "-c", "copy", output_file]
-            
+            fetch_hls_native_python(stream_url, output_file)
+        except Exception as err:
             with hls_download_lock:
-                hls_download_status["percent"] = 20
-                hls_download_status["status_text"] = "Downloading & Compiling Segments into MP4..."
-
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            proc.wait()
-
-            if proc.returncode == 0 and os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                with hls_download_lock:
-                    hls_download_status["running"] = False
-                    hls_download_status["percent"] = 100
-                    hls_download_status["status_text"] = "🎉 Download Completed Successfully!"
-                    hls_download_status["filename"] = filename
-                    hls_download_status["download_url"] = f"/downloads/{urllib.parse.quote(filename)}"
-            else:
-                fetch_hls_native_python(stream_url, output_file)
-        except Exception as e:
-            try:
-                fetch_hls_native_python(stream_url, output_file)
-            except Exception as e2:
-                with hls_download_lock:
-                    hls_download_status["running"] = False
-                    hls_download_status["error"] = str(e2)
-                    hls_download_status["status_text"] = f"Failed: {e2}"
+                hls_download_status["running"] = False
+                hls_download_status["error"] = str(err)
+                hls_download_status["status_text"] = f"Failed: {err}"
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
