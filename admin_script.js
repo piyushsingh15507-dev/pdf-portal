@@ -566,8 +566,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             btnRunTgPipe.innerText = '⚡ Auto-Upload to Telegram Cloud & Add to Course';
                         }
                         if (st.percent === 100) {
-                            alert('🎉 Video successfully downloaded, uploaded to Telegram Cloud, and added to Course!');
+                            alert(st.status_text || '🎉 Video successfully processed and added to Course!');
                             loadAdminData();
+                        } else if (st.error) {
+                            alert(`Pipeline Alert: ${st.error}`);
                         }
                     }
                 }

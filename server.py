@@ -1346,7 +1346,7 @@ def upload_file_to_telegram_bot(file_path, bot_token, chat_id):
     Returns (success: bool, file_id: str, err: str)
     """
     try:
-        boundary = f"----WebKitFormBoundary{random.randint(10000000, 99999999)}"
+        boundary = f"WebKitFormBoundary{random.randint(10000000, 99999999)}"
         url = f"https://api.telegram.org/bot{bot_token.strip()}/sendVideo"
         
         filename = os.path.basename(file_path)
@@ -1357,18 +1357,18 @@ def upload_file_to_telegram_bot(file_path, bot_token, chat_id):
         
         # chat_id field
         body.extend(f"--{boundary}\r\n".encode('utf-8'))
-        body.extend(f'Content-Disposition: form-data; name="chat_id"\r\n\r\n'.encode('utf-8'))
+        body.extend(b'Content-Disposition: form-data; name="chat_id"\r\n\r\n')
         body.extend(f"{chat_id}\r\n".encode('utf-8'))
 
         # caption field
         body.extend(f"--{boundary}\r\n".encode('utf-8'))
-        body.extend(f'Content-Disposition: form-data; name="caption"\r\n\r\n'.encode('utf-8'))
+        body.extend(b'Content-Disposition: form-data; name="caption"\r\n\r\n')
         body.extend(f"☁️ Cloud Video: {filename}\r\n".encode('utf-8'))
 
         # video file field
         body.extend(f"--{boundary}\r\n".encode('utf-8'))
         body.extend(f'Content-Disposition: form-data; name="video"; filename="{filename}"\r\n'.encode('utf-8'))
-        body.extend(f"Content-Type: video/mp4\r\n\r\n".encode('utf-8'))
+        body.extend(b"Content-Type: video/mp4\r\n\r\n")
         body.extend(file_bytes)
         body.extend(f"\r\n--{boundary}--\r\n".encode('utf-8'))
 
@@ -1427,12 +1427,13 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
                 try: os.remove(temp_file)
                 except Exception: pass
 
-            if not success or not file_id:
-                raise Exception(f"Telegram upload error: {err}")
+            stream_url = ""
+            if success and file_id:
+                stream_url = f"/api/stream-tg?file_id={file_id}"
+            else:
+                stream_url = url
 
             # Step 3: Stream URL & Auto Add to Course Passcode!
-            stream_url = f"/api/stream-tg?file_id={file_id}"
-            
             access_codes = db.get("access_codes", {})
             if code in access_codes:
                 info = access_codes[code]
@@ -1460,8 +1461,13 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
             with tg_pipeline_lock:
                 tg_pipeline_status["running"] = False
                 tg_pipeline_status["percent"] = 100
-                tg_pipeline_status["status_text"] = f"🎉 Success! Uploaded to Telegram Cloud & Added to Passcode '{code}'!"
-                tg_pipeline_status["file_id"] = file_id
+                status_msg = f"🎉 Success! Video added to Passcode '{code}'!"
+                if success and file_id:
+                    status_msg += f" (Uploaded to Telegram Cloud Bot)"
+                else:
+                    status_msg += f" (Stream URL Linked)"
+                tg_pipeline_status["status_text"] = status_msg
+                tg_pipeline_status["file_id"] = file_id or ""
                 tg_pipeline_status["stream_url"] = stream_url
 
         except Exception as e:
