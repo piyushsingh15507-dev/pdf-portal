@@ -1208,8 +1208,11 @@ hls_download_status = {
     "error": ""
 }
 
-def fetch_hls_native_python(stream_url, output_file):
-    global hls_download_status
+def fetch_hls_native_python(stream_url, output_file, status_dict=None, status_lock=None, max_pct=90):
+    global hls_download_status, hls_download_lock
+    target_status = status_dict if status_dict is not None else hls_download_status
+    target_lock = status_lock if status_lock is not None else hls_download_lock
+
     req = urllib.request.Request(stream_url, headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     })
@@ -1228,7 +1231,7 @@ def fetch_hls_native_python(stream_url, output_file):
             break
 
     if child_m3u8:
-        return fetch_hls_native_python(child_m3u8, output_file)
+        return fetch_hls_native_python(child_m3u8, output_file, status_dict, status_lock, max_pct)
 
     segment_urls = []
     for line in lines:
@@ -1251,11 +1254,11 @@ def fetch_hls_native_python(stream_url, output_file):
             s_req = urllib.request.Request(seg_url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_res:
                 segments_data[idx] = s_res.read()
-            with hls_download_lock:
+            with target_lock:
                 completed += 1
-                pct = int((completed / total) * 90) + 5
-                hls_download_status["percent"] = pct
-                hls_download_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
+                pct = int((completed / total) * (max_pct - 10)) + 10
+                target_status["percent"] = pct
+                target_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
         except Exception:
             pass
 
@@ -1269,12 +1272,13 @@ def fetch_hls_native_python(stream_url, output_file):
                 out_f.write(seg)
 
     filename = os.path.basename(output_file)
-    with hls_download_lock:
-        hls_download_status["running"] = False
-        hls_download_status["percent"] = 100
-        hls_download_status["status_text"] = "🎉 Stream Download Completed!"
-        hls_download_status["filename"] = filename
-        hls_download_status["download_url"] = f"/downloads/{urllib.parse.quote(filename)}"
+    if status_dict is None:
+        with hls_download_lock:
+            hls_download_status["running"] = False
+            hls_download_status["percent"] = 100
+            hls_download_status["status_text"] = "🎉 Stream Download Completed!"
+            hls_download_status["filename"] = filename
+            hls_download_status["download_url"] = f"/downloads/{urllib.parse.quote(filename)}"
 
 def start_hls_stream_download(stream_url, title):
     global hls_download_status
@@ -1414,8 +1418,8 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
         temp_file = os.path.join(downloads_dir, f"{safe_title}.mp4")
 
         try:
-            # Step 1: Download stream
-            fetch_hls_native_python(url, temp_file)
+            # Step 1: Download stream with live progress updating tg_pipeline_status!
+            fetch_hls_native_python(url, temp_file, status_dict=tg_pipeline_status, status_lock=tg_pipeline_lock, max_pct=50)
             
             with tg_pipeline_lock:
                 tg_pipeline_status["percent"] = 55
