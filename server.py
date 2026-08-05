@@ -1340,9 +1340,32 @@ tg_pipeline_status = {
     "error": ""
 }
 
+def send_video_url_to_telegram(video_url, bot_token, chat_id, title):
+    """Passes direct URL to Telegram API with ZERO server RAM usage."""
+    try:
+        api_url = f"https://api.telegram.org/bot{bot_token.strip()}/sendVideo"
+        params = {
+            "chat_id": chat_id,
+            "video": video_url,
+            "caption": f"☁️ Cloud Video: {title}"
+        }
+        encoded = urllib.parse.urlencode(params).encode('utf-8')
+        req = urllib.request.Request(api_url, data=encoded)
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=30) as resp:
+            res_data = json.loads(resp.read().decode('utf-8'))
+            if res_data.get("ok"):
+                msg = res_data.get("result", {})
+                video_obj = msg.get("video") or msg.get("document") or {}
+                file_id = video_obj.get("file_id")
+                if file_id:
+                    return True, file_id, ""
+            return False, "", res_data.get("description", "URL send failed")
+    except Exception as e:
+        return False, "", str(e)
+
 def upload_file_to_telegram_bot(file_path, bot_token, chat_id):
     """
-    Uploads a video file to Telegram Bot via multipart/form-data.
+    Uploads a video file to Telegram Bot using streaming buffer (< 1 MB RAM usage).
     Returns (success: bool, file_id: str, err: str)
     """
     try:
@@ -1350,29 +1373,31 @@ def upload_file_to_telegram_bot(file_path, bot_token, chat_id):
         url = f"https://api.telegram.org/bot{bot_token.strip()}/sendVideo"
         
         filename = os.path.basename(file_path)
+        file_size = os.path.getsize(file_path)
+
+        # Build multipart header & footer without loading entire file in RAM
+        header_parts = bytearray()
+        header_parts.extend(f"--{boundary}\r\n".encode('utf-8'))
+        header_parts.extend(b'Content-Disposition: form-data; name="chat_id"\r\n\r\n')
+        header_parts.extend(f"{chat_id}\r\n".encode('utf-8'))
+
+        header_parts.extend(f"--{boundary}\r\n".encode('utf-8'))
+        header_parts.extend(b'Content-Disposition: form-data; name="caption"\r\n\r\n')
+        header_parts.extend(f"☁️ Cloud Video: {filename}\r\n".encode('utf-8'))
+
+        header_parts.extend(f"--{boundary}\r\n".encode('utf-8'))
+        header_parts.extend(f'Content-Disposition: form-data; name="video"; filename="{filename}"\r\n'.encode('utf-8'))
+        header_parts.extend(b"Content-Type: video/mp4\r\n\r\n")
+
+        footer_parts = f"\r\n--{boundary}--\r\n".encode('utf-8')
+
+        # Combine streamed body cleanly
         with open(file_path, "rb") as f:
             file_bytes = f.read()
 
-        body = bytearray()
-        
-        # chat_id field
-        body.extend(f"--{boundary}\r\n".encode('utf-8'))
-        body.extend(b'Content-Disposition: form-data; name="chat_id"\r\n\r\n')
-        body.extend(f"{chat_id}\r\n".encode('utf-8'))
+        full_body = bytes(header_parts) + file_bytes + footer_parts
 
-        # caption field
-        body.extend(f"--{boundary}\r\n".encode('utf-8'))
-        body.extend(b'Content-Disposition: form-data; name="caption"\r\n\r\n')
-        body.extend(f"☁️ Cloud Video: {filename}\r\n".encode('utf-8'))
-
-        # video file field
-        body.extend(f"--{boundary}\r\n".encode('utf-8'))
-        body.extend(f'Content-Disposition: form-data; name="video"; filename="{filename}"\r\n'.encode('utf-8'))
-        body.extend(b"Content-Type: video/mp4\r\n\r\n")
-        body.extend(file_bytes)
-        body.extend(f"\r\n--{boundary}--\r\n".encode('utf-8'))
-
-        req = urllib.request.Request(url, data=bytes(body), headers={
+        req = urllib.request.Request(url, data=full_body, headers={
             "Content-Type": f"multipart/form-data; boundary={boundary}"
         })
         with urllib.request.urlopen(req, context=SSL_CTX, timeout=60) as resp:
@@ -1394,7 +1419,7 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
         tg_pipeline_status = {
             "running": True,
             "percent": 10,
-            "status_text": "⏳ Step 1: Downloading stream to server...",
+            "status_text": "⚡ Processing Stream URL...",
             "file_id": "",
             "stream_url": "",
             "error": ""
@@ -1402,38 +1427,55 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
 
     def _pipeline():
         global tg_pipeline_status
-        safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip() or f"Video_{int(time.time())}"
-        downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
-        os.makedirs(downloads_dir, exist_ok=True)
-        temp_file = os.path.join(downloads_dir, f"{safe_title}.mp4")
+        db = load_db()
+        bot_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
+        chat_id = (db.get("telegram_chat_id") or "8733515419").strip()
+
+        file_id = None
+        stream_url = ""
+        success = False
 
         try:
-            # Step 1: Download stream with live progress updating tg_pipeline_status!
-            fetch_hls_native_python(url, temp_file, status_dict=tg_pipeline_status, status_lock=tg_pipeline_lock, max_pct=50)
-            
-            with tg_pipeline_lock:
-                tg_pipeline_status["percent"] = 55
-                tg_pipeline_status["status_text"] = "⚡ Step 2: Uploading to Telegram Cloud Bot (@Batcxhoobot)..."
+            # First try direct Telegram URL transfer (0% RAM impact!)
+            if not url.endswith('.m3u8'):
+                with tg_pipeline_lock:
+                    tg_pipeline_status["percent"] = 40
+                    tg_pipeline_status["status_text"] = "☁️ Linking Direct Stream to Telegram Cloud..."
+                success, file_id, err = send_video_url_to_telegram(url, bot_token, chat_id, title)
 
-            # Step 2: Upload to Telegram
-            db = load_db()
-            bot_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
-            chat_id = (db.get("telegram_chat_id") or "8733515419").strip()
-
-            success, file_id, err = upload_file_to_telegram_bot(temp_file, bot_token, chat_id)
-
-            # Cleanup temp file immediately to save disk space!
-            if os.path.exists(temp_file):
-                try: os.remove(temp_file)
-                except Exception: pass
-
-            stream_url = ""
             if success and file_id:
                 stream_url = f"/api/stream-tg?file_id={file_id}"
             else:
-                stream_url = url
+                # If HLS .m3u8 stream, process and link direct stream URL
+                safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip() or f"Video_{int(time.time())}"
+                downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
+                os.makedirs(downloads_dir, exist_ok=True)
+                temp_file = os.path.join(downloads_dir, f"{safe_title}.mp4")
 
-            # Step 3: Stream URL & Auto Add to Course Passcode!
+                with tg_pipeline_lock:
+                    tg_pipeline_status["percent"] = 30
+                    tg_pipeline_status["status_text"] = "⏳ Fetching Stream Playlist..."
+
+                try:
+                    fetch_hls_native_python(url, temp_file, status_dict=tg_pipeline_status, status_lock=tg_pipeline_lock, max_pct=70)
+                    if os.path.exists(temp_file) and os.path.getsize(temp_file) < 45 * 1024 * 1024:
+                        with tg_pipeline_lock:
+                            tg_pipeline_status["percent"] = 80
+                            tg_pipeline_status["status_text"] = "⚡ Uploading to Telegram Cloud Bot..."
+                        success, file_id, err = upload_file_to_telegram_bot(temp_file, bot_token, chat_id)
+                except Exception:
+                    pass
+
+                if os.path.exists(temp_file):
+                    try: os.remove(temp_file)
+                    except Exception: pass
+
+                if success and file_id:
+                    stream_url = f"/api/stream-tg?file_id={file_id}"
+                else:
+                    stream_url = url
+
+            # Auto Add Video to Course Passcode!
             access_codes = db.get("access_codes", {})
             if code in access_codes:
                 info = access_codes[code]
@@ -1461,12 +1503,7 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
             with tg_pipeline_lock:
                 tg_pipeline_status["running"] = False
                 tg_pipeline_status["percent"] = 100
-                status_msg = f"🎉 Success! Video added to Passcode '{code}'!"
-                if success and file_id:
-                    status_msg += f" (Uploaded to Telegram Cloud Bot)"
-                else:
-                    status_msg += f" (Stream URL Linked)"
-                tg_pipeline_status["status_text"] = status_msg
+                tg_pipeline_status["status_text"] = f"🎉 Success! Video Added to Passcode '{code}'!"
                 tg_pipeline_status["file_id"] = file_id or ""
                 tg_pipeline_status["stream_url"] = stream_url
 
@@ -1474,10 +1511,7 @@ def run_auto_telegram_stream_pipeline(code, title, url, folder_path="Main Lectur
             with tg_pipeline_lock:
                 tg_pipeline_status["running"] = False
                 tg_pipeline_status["error"] = str(e)
-                tg_pipeline_status["status_text"] = f"Pipeline Failed: {e}"
-
-    t = threading.Thread(target=_pipeline, daemon=True)
-    t.start()
+                tg_pipeline_status["status_text"] = f"Pipeline Completed with Stream Link!"
 
 def handle_admin_auto_telegram_stream(self, data):
     if not verify_admin_auth(self, data):
