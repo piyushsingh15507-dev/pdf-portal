@@ -189,7 +189,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeVideoPlayer() {
         if (videoPlayerModal) {
             videoPlayerModal.classList.add('hidden');
-            if (videoIframe) videoIframe.src = '';
+        }
+        if (videoIframe) videoIframe.src = '';
+        const hlsPlayer = document.getElementById('hls-native-player');
+        if (hlsPlayer) {
+            hlsPlayer.pause();
+            hlsPlayer.src = '';
+            hlsPlayer.classList.add('hidden');
+        }
+        if (window.hlsInstance) {
+            try { window.hlsInstance.destroy(); } catch (e) {}
+            window.hlsInstance = null;
         }
     }
 
@@ -268,11 +278,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const formattedUrl = formatEmbedVideoUrl(videoUrl);
+                const hlsPlayer = document.getElementById('hls-native-player');
+                const iframeWrapper = document.getElementById('iframe-player-wrapper');
+                const topShield = document.getElementById('shield-top-bar');
+                const bottomShield = document.getElementById('shield-bottom-right');
 
                 if (videoModalTitle) videoModalTitle.innerHTML = `🎥 ${escapeHtml(title)}`;
-                if (videoIframe) {
-                    videoIframe.src = formattedUrl;
+
+                const isHlsStream = videoUrl.includes('.m3u8') || formattedUrl.includes('.m3u8');
+
+                if (isHlsStream) {
+                    if (iframeWrapper) iframeWrapper.classList.add('hidden');
+                    if (topShield) topShield.classList.add('hidden');
+                    if (bottomShield) bottomShield.classList.add('hidden');
+
+                    if (hlsPlayer) {
+                        hlsPlayer.classList.remove('hidden');
+                        if (window.hlsInstance) {
+                            try { window.hlsInstance.destroy(); } catch (e) {}
+                            window.hlsInstance = null;
+                        }
+
+                        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                            const hls = new Hls({
+                                enableWorker: true,
+                                lowLatencyMode: true,
+                                backBufferLength: 90
+                            });
+                            hls.loadSource(videoUrl);
+                            hls.attachMedia(hlsPlayer);
+                            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                                hlsPlayer.play().catch(() => {});
+                            });
+                            window.hlsInstance = hls;
+                        } else if (hlsPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                            hlsPlayer.src = videoUrl;
+                            hlsPlayer.play().catch(() => {});
+                        }
+                    }
+                } else {
+                    if (hlsPlayer) {
+                        hlsPlayer.pause();
+                        hlsPlayer.classList.add('hidden');
+                        if (window.hlsInstance) {
+                            try { window.hlsInstance.destroy(); } catch (e) {}
+                            window.hlsInstance = null;
+                        }
+                    }
+                    if (iframeWrapper) iframeWrapper.classList.remove('hidden');
+                    if (topShield) topShield.classList.remove('hidden');
+                    if (bottomShield) bottomShield.classList.remove('hidden');
+
+                    if (videoIframe) videoIframe.src = formattedUrl;
                 }
+
                 if (videoPlayerModal) videoPlayerModal.classList.remove('hidden');
             });
         });

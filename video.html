@@ -6,6 +6,7 @@
     <title>Video Lectures Portal | SciAstra & CUET / JEE</title>
     <link rel="stylesheet" href="student_style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
     <div class="app-container">
@@ -118,8 +119,11 @@
                 <div id="shield-top-bar" class="stealth-shield" style="position: absolute; top: 0; left: 0; width: 100%; height: 54px; z-index: 900; background: transparent; cursor: default;"></div>
                 <div id="shield-bottom-right" class="stealth-shield" style="position: absolute; bottom: 0; right: 0; width: 230px; height: 50px; z-index: 900; background: transparent; cursor: default;"></div>
 
+                <!-- HTML5 Native HLS Video Element (For .m3u8 100ms Live & Recorded Streams) -->
+                <video id="hls-native-player" controls style="width: 100%; height: 100%; object-fit: contain; background: #000; position: relative; z-index: 800;" class="hidden"></video>
+
                 <!-- 104% Smart Edge-Cropped Video Frame Container -->
-                <div style="width: 100%; height: 100%; overflow: hidden; position: relative;">
+                <div id="iframe-player-wrapper" style="width: 100%; height: 100%; overflow: hidden; position: relative;">
                     <iframe id="video-iframe" src="" style="width: 100%; height: 100%; border: none; transform: scale(1.04); transform-origin: center center;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
             </div>
