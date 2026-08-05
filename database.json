@@ -25,6 +25,33 @@
       "access_scope": "all",
       "custom_pdfs": [],
       "custom_videos": []
+    },
+    "IISER": {
+      "course_id": "840829",
+      "course_name": "raman 1.0 (IISER)",
+      "category": "IAT & NEST",
+      "type": "classplus",
+      "access_scope": "all",
+      "custom_pdfs": [],
+      "custom_videos": []
+    },
+    "SCI": {
+      "course_id": "840829",
+      "course_name": "SciAstra Special",
+      "category": "IAT & NEST",
+      "type": "classplus",
+      "access_scope": "all",
+      "custom_pdfs": [],
+      "custom_videos": []
+    },
+    "CUET": {
+      "course_id": "",
+      "course_name": "CUET Materials",
+      "category": "CUET",
+      "type": "custom",
+      "access_scope": "all",
+      "custom_pdfs": [],
+      "custom_videos": []
     }
   },
   "student_sessions": [
