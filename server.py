@@ -261,6 +261,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_pdf_batch_download(data)
         elif path == "/api/admin/download-hls-stream":
             self.handle_admin_download_hls_stream(data)
+        elif path == "/api/admin/cancel-hls-download":
+            self.handle_admin_cancel_hls_download(data)
         elif path == "/api/admin/auto-telegram-stream":
             self.handle_admin_auto_telegram_stream(data)
         elif path == "/api/admin/request-otp":
@@ -1249,6 +1251,10 @@ def fetch_hls_native_python(stream_url, output_file, status_dict=None, status_lo
     # Ultra-Low RAM Streamer: Streams chunk by chunk directly to disk (< 5 MB RAM usage!)
     with open(output_file, "wb") as out_f:
         for completed, seg_url in enumerate(segment_urls, 1):
+            with target_lock:
+                if not target_status.get("running", True):
+                    raise Exception("Stream download cancelled by user.")
+
             try:
                 s_req = urllib.request.Request(seg_url, headers={"User-Agent": "Mozilla/5.0"})
                 with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_res:
@@ -1258,7 +1264,9 @@ def fetch_hls_native_python(stream_url, output_file, status_dict=None, status_lo
                     pct = int((completed / total) * (max_pct - 10)) + 10
                     target_status["percent"] = pct
                     target_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
-            except Exception:
+            except Exception as e:
+                if "cancelled" in str(e).lower():
+                    raise e
                 pass
 
     filename = os.path.basename(output_file)
@@ -1327,6 +1335,34 @@ def handle_admin_download_hls_stream(self, data):
 def handle_admin_hls_download_status(self):
     with hls_download_lock:
         self.send_json({"success": True, "status": hls_download_status})
+
+def handle_admin_cancel_hls_download(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+
+    with hls_download_lock:
+        hls_download_status["running"] = False
+        hls_download_status["percent"] = 0
+        hls_download_status["status_text"] = "Idle (Cancelled)"
+
+    with tg_pipeline_lock:
+        tg_pipeline_status["running"] = False
+        tg_pipeline_status["percent"] = 0
+        tg_pipeline_status["status_text"] = "Idle (Cancelled)"
+
+    # Purge temp downloads
+    try:
+        downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
+        if os.path.exists(downloads_dir):
+            for f in os.listdir(downloads_dir):
+                fp = os.path.join(downloads_dir, f)
+                if os.path.isfile(fp):
+                    try: os.remove(fp)
+                    except Exception: pass
+    except Exception: pass
+
+    self.send_json({"success": True, "message": "All background tasks cancelled and temp files purged!"})
 
 # ==================== AUTOMATED TELEGRAM CLOUD STREAM BRIDGE ====================
 
@@ -2870,6 +2906,7 @@ def handle_student_click(self, data):
 
 APIHandler.handle_admin_download_hls_stream = handle_admin_download_hls_stream
 APIHandler.handle_admin_hls_download_status = handle_admin_hls_download_status
+APIHandler.handle_admin_cancel_hls_download = handle_admin_cancel_hls_download
 APIHandler.handle_admin_auto_telegram_stream = handle_admin_auto_telegram_stream
 APIHandler.handle_admin_auto_telegram_status = handle_admin_auto_telegram_status
 APIHandler.handle_telegram_stream_proxy = handle_telegram_stream_proxy
