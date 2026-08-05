@@ -407,6 +407,90 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const hlsTitleInput = document.getElementById('hls-stream-title');
+    const hlsUrlInput = document.getElementById('hls-stream-url');
+    const btnDownloadHlsStream = document.getElementById('btn-download-hls-stream');
+    const hlsStatusBox = document.getElementById('hls-download-status-box');
+    const hlsStatusText = document.getElementById('hls-download-status-text');
+    const hlsPercentText = document.getElementById('hls-download-percent');
+    const hlsProgressBar = document.getElementById('hls-download-progress-bar');
+    const hlsLinkContainer = document.getElementById('hls-download-link-container');
+    const btnSaveMp4File = document.getElementById('btn-save-mp4-file');
+
+    let hlsPollInterval = null;
+
+    if (btnDownloadHlsStream) {
+        btnDownloadHlsStream.addEventListener('click', async (e) => {
+            if (e) e.preventDefault();
+            const title = hlsTitleInput ? hlsTitleInput.value.trim() : 'Live_Lecture';
+            const url = hlsUrlInput ? hlsUrlInput.value.trim() : '';
+
+            if (!url) {
+                alert('Please enter an HLS Stream URL (.m3u8).');
+                return;
+            }
+
+            btnDownloadHlsStream.disabled = true;
+            btnDownloadHlsStream.innerText = 'Starting Stream Download...';
+            if (hlsStatusBox) hlsStatusBox.classList.remove('hidden');
+            if (hlsLinkContainer) hlsLinkContainer.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/admin/download-hls-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Secret': currentAdminSecret
+                    },
+                    body: JSON.stringify({ title, url })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    pollHlsDownloadStatus();
+                } else {
+                    alert(`Error starting download: ${data.error}`);
+                    btnDownloadHlsStream.disabled = false;
+                    btnDownloadHlsStream.innerText = '📥 Download Stream to MP4';
+                }
+            } catch (err) {
+                alert(`Network error: ${err.message}`);
+                btnDownloadHlsStream.disabled = false;
+                btnDownloadHlsStream.innerText = '📥 Download Stream to MP4';
+            }
+        });
+    }
+
+    function pollHlsDownloadStatus() {
+        if (hlsPollInterval) clearInterval(hlsPollInterval);
+        hlsPollInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/admin/hls-download-status');
+                const data = await res.json();
+
+                if (data.success && data.status) {
+                    const st = data.status;
+                    if (hlsStatusText) hlsStatusText.innerText = st.status_text || 'Downloading...';
+                    if (hlsPercentText) hlsPercentText.innerText = `${st.percent || 0}%`;
+                    if (hlsProgressBar) hlsProgressBar.style.width = `${st.percent || 0}%`;
+
+                    if (!st.running) {
+                        clearInterval(hlsPollInterval);
+                        if (btnDownloadHlsStream) {
+                            btnDownloadHlsStream.disabled = false;
+                            btnDownloadHlsStream.innerText = '📥 Download Stream to MP4';
+                        }
+                        if (st.download_url && btnSaveMp4File) {
+                            btnSaveMp4File.href = st.download_url;
+                            btnSaveMp4File.setAttribute('download', st.filename || 'video.mp4');
+                            if (hlsLinkContainer) hlsLinkContainer.classList.remove('hidden');
+                        }
+                    }
+                }
+            } catch (err) {}
+        }, 1500);
+    }
+
     const smtpEmailInput = document.getElementById('smtp-email');
     const smtpPassInput = document.getElementById('smtp-pass');
     const btnSaveEmailGateway = document.getElementById('btn-save-email-gateway');

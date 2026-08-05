@@ -204,6 +204,22 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_batch_status()
         elif path == "/api/pdf/batch-status":
             self.handle_pdf_batch_status()
+        elif path == "/api/admin/hls-download-status":
+            self.handle_admin_hls_download_status()
+        elif path.startswith("/downloads/"):
+            filename = urllib.parse.unquote(path.replace("/downloads/", ""))
+            file_path = os.path.join(WORKSPACE_DIR, "downloads", filename)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                self.send_response(200)
+                self.send_header("Content-Type", "video/mp4")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(os.path.getsize(file_path)))
+                self.end_headers()
+                with open(file_path, "rb") as f:
+                    while chunk := f.read(65536):
+                        self.wfile.write(chunk)
+            else:
+                self.send_error(404, "File Not Found")
         else:
             self.send_error(404, "File Not Found")
 
@@ -239,6 +255,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_export_pdf_links(data)
         elif path == "/api/pdf/batch-download":
             self.handle_pdf_batch_download(data)
+        elif path == "/api/admin/download-hls-stream":
+            self.handle_admin_download_hls_stream(data)
         elif path == "/api/admin/request-otp":
             self.handle_admin_request_otp(data)
         elif path == "/api/admin/auth":
@@ -1171,6 +1189,153 @@ def run_batch_downloader_process(token, course_id, quality, mux_format):
             batch_status["running"] = False
             batch_status["status_text"] = "Failed"
             batch_status["logs"].append(f"[BATCH] [FATAL ERROR] {e}")
+
+# ==================== LIVE & HLS STREAM MP4 DOWNLOADER ====================
+
+hls_download_lock = threading.Lock()
+hls_download_status = {
+    "running": False,
+    "percent": 0,
+    "status_text": "Idle",
+    "filename": "",
+    "download_url": "",
+    "error": ""
+}
+
+def fetch_hls_native_python(stream_url, output_file):
+    global hls_download_status
+    req = urllib.request.Request(stream_url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+    base_url = stream_url.rsplit('/', 1)[0] + '/'
+    
+    with urllib.request.urlopen(req, context=SSL_CTX, timeout=12) as res:
+        playlist_text = res.read().decode('utf-8')
+
+    segment_urls = []
+    for line in playlist_text.splitlines():
+        line = line.strip()
+        if line and not line.startswith('#'):
+            if line.startswith('http'):
+                segment_urls.append(line)
+            else:
+                segment_urls.append(urllib.parse.urljoin(base_url, line))
+
+    if not segment_urls:
+        raise Exception("No valid video segments found in playlist.")
+
+    total = len(segment_urls)
+    segments_data = [None] * total
+    completed = 0
+
+    def download_segment(idx, seg_url):
+        nonlocal completed
+        try:
+            s_req = urllib.request.Request(seg_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_res:
+                segments_data[idx] = s_res.read()
+            with hls_download_lock:
+                completed += 1
+                pct = int((completed / total) * 90) + 5
+                hls_download_status["percent"] = pct
+                hls_download_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
+        except Exception:
+            pass
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(download_segment, i, url) for i, url in enumerate(segment_urls)]
+        concurrent.futures.wait(futures)
+
+    with open(output_file, "wb") as out_f:
+        for seg in segments_data:
+            if seg:
+                out_f.write(seg)
+
+    filename = os.path.basename(output_file)
+    with hls_download_lock:
+        hls_download_status["running"] = False
+        hls_download_status["percent"] = 100
+        hls_download_status["status_text"] = "🎉 Stream Download Completed!"
+        hls_download_status["filename"] = filename
+        hls_download_status["download_url"] = f"/downloads/{urllib.parse.quote(filename)}"
+
+def start_hls_stream_download(stream_url, title):
+    global hls_download_status
+    with hls_download_lock:
+        hls_download_status = {
+            "running": True,
+            "percent": 5,
+            "status_text": "Parsing HLS Stream Playlist...",
+            "filename": "",
+            "download_url": "",
+            "error": ""
+        }
+
+    def _worker():
+        global hls_download_status
+        try:
+            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()
+            if not safe_title:
+                safe_title = f"Live_Stream_{int(time.time())}"
+            filename = f"{safe_title}.mp4"
+
+            downloads_dir = os.path.join(WORKSPACE_DIR, "downloads")
+            os.makedirs(downloads_dir, exist_ok=True)
+            output_file = os.path.join(downloads_dir, filename)
+
+            cmd = ["ffmpeg", "-y", "-i", stream_url, "-c", "copy", output_file]
+            
+            with hls_download_lock:
+                hls_download_status["percent"] = 20
+                hls_download_status["status_text"] = "Downloading & Compiling Segments into MP4..."
+
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc.wait()
+
+            if proc.returncode == 0 and os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                with hls_download_lock:
+                    hls_download_status["running"] = False
+                    hls_download_status["percent"] = 100
+                    hls_download_status["status_text"] = "🎉 Download Completed Successfully!"
+                    hls_download_status["filename"] = filename
+                    hls_download_status["download_url"] = f"/downloads/{urllib.parse.quote(filename)}"
+            else:
+                fetch_hls_native_python(stream_url, output_file)
+        except Exception as e:
+            try:
+                fetch_hls_native_python(stream_url, output_file)
+            except Exception as e2:
+                with hls_download_lock:
+                    hls_download_status["running"] = False
+                    hls_download_status["error"] = str(e2)
+                    hls_download_status["status_text"] = f"Failed: {e2}"
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+def handle_admin_download_hls_stream(self, data):
+    if not verify_admin_auth(self, data):
+        self.send_json({"success": False, "error": "Unauthorized Admin Request."}, 401)
+        return
+
+    url = data.get("url", "").strip()
+    title = data.get("title", "").strip() or "Live_Lecture"
+
+    if not url:
+        self.send_json({"success": False, "error": "HLS Stream URL (.m3u8) is required."}, 400)
+        return
+
+    with hls_download_lock:
+        if hls_download_status.get("running"):
+            self.send_json({"success": False, "error": "Another stream download is already running. Please wait for it to complete."}, 400)
+            return
+
+    start_hls_stream_download(url, title)
+    self.send_json({"success": True, "message": "HLS Stream Download started in background!"})
+
+def handle_admin_hls_download_status(self):
+    with hls_download_lock:
+        self.send_json({"success": True, "status": hls_download_status})
 
 # ==================== PDF DIRECT DOWNLOADER HELPERS ====================
 
@@ -2461,6 +2626,8 @@ def handle_student_click(self, data):
     save_db(db)
     self.send_json({"success": True})
 
+APIHandler.handle_admin_download_hls_stream = handle_admin_download_hls_stream
+APIHandler.handle_admin_hls_download_status = handle_admin_hls_download_status
 APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
 APIHandler.handle_admin_change_secret = handle_admin_change_secret

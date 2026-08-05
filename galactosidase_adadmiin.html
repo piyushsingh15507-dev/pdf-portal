@@ -209,7 +209,46 @@
                     </div>
                 </div>
 
-                <!-- 6. Change Admin Secret Password -->
+                <!-- 6. Live & HLS Stream Video Downloader (.m3u8 ➔ MP4) -->
+                <div class="card control-card panel-item" data-panel-id="panel-hls-downloader">
+                    <div class="panel-card-header">
+                        <h3 class="section-title" style="margin: 0;">📥 Live & HLS Stream MP4 Downloader</h3>
+                        <div class="card-order-controls hidden">
+                            <button type="button" class="btn-order-move btn-move-up" title="Move Left/Up">◀ Up</button>
+                            <button type="button" class="btn-order-move btn-move-down" title="Move Right/Down">Down ▶</button>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.82rem; color: #9ca3af; margin-bottom: 12px;">Download 100ms.live & HLS (.m3u8) streams into HD MP4 files!</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="hls-stream-title">Video / Lecture Title</label>
+                            <input type="text" id="hls-stream-title" placeholder="e.g. Physics_Live_Class_1" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="hls-stream-url">HLS Stream URL (.m3u8)</label>
+                            <input type="text" id="hls-stream-url" placeholder="e.g. https://cp-cdn-in3.100ms.live/.../stream.m3u8" autocomplete="off">
+                        </div>
+                        <button id="btn-download-hls-stream" type="button" class="btn btn-primary export-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; width: 100%;">
+                            📥 Download Stream to MP4
+                        </button>
+                    </div>
+                    <div id="hls-download-status-box" class="hidden" style="margin-top: 12px; padding: 12px; background: rgba(15, 23, 42, 0.7); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span id="hls-download-status-text" style="font-size: 0.85rem; color: #34d399; font-weight: 600;">⏳ Downloading...</span>
+                            <span id="hls-download-percent" style="font-size: 0.85rem; color: #60a5fa; font-weight: 600;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                            <div id="hls-download-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #10b981, #3b82f6); transition: width 0.3s;"></div>
+                        </div>
+                        <div id="hls-download-link-container" class="hidden" style="margin-top: 10px; text-align: center;">
+                            <a id="btn-save-mp4-file" href="#" download class="btn btn-primary" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 0.88rem;">
+                                💾 Download MP4 Video File
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Change Admin Secret Password -->
                 <div class="card control-card panel-item" data-panel-id="panel-password">
                     <div class="panel-card-header">
                         <h3 class="section-title" style="margin: 0;">🔒 Change Admin Master Password</h3>
