@@ -1245,31 +1245,21 @@ def fetch_hls_native_python(stream_url, output_file, status_dict=None, status_lo
         raise Exception("No valid video segments found in stream playlist.")
 
     total = len(segment_urls)
-    segments_data = [None] * total
-    completed = 0
 
-    def download_segment(idx, seg_url):
-        nonlocal completed
-        try:
-            s_req = urllib.request.Request(seg_url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_res:
-                segments_data[idx] = s_res.read()
-            with target_lock:
-                completed += 1
-                pct = int((completed / total) * (max_pct - 10)) + 10
-                target_status["percent"] = pct
-                target_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
-        except Exception:
-            pass
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [executor.submit(download_segment, i, url) for i, url in enumerate(segment_urls)]
-        concurrent.futures.wait(futures)
-
+    # Ultra-Low RAM Streamer: Streams chunk by chunk directly to disk (< 5 MB RAM usage!)
     with open(output_file, "wb") as out_f:
-        for seg in segments_data:
-            if seg:
-                out_f.write(seg)
+        for completed, seg_url in enumerate(segment_urls, 1):
+            try:
+                s_req = urllib.request.Request(seg_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_res:
+                    while chunk := s_res.read(65536):
+                        out_f.write(chunk)
+                with target_lock:
+                    pct = int((completed / total) * (max_pct - 10)) + 10
+                    target_status["percent"] = pct
+                    target_status["status_text"] = f"Downloading Segments ({completed}/{total})..."
+            except Exception:
+                pass
 
     filename = os.path.basename(output_file)
     if status_dict is None:
