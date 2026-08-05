@@ -1590,39 +1590,38 @@ def sync_cloud_db(data):
     threading.Thread(target=_upload, daemon=True).start()
 
 def load_db():
-    """Loads and merges database state from 24/7 Cloud Database and local disk."""
+    """Loads database state from 24/7 Cloud Database (Master Source of Truth) and local disk."""
     global _IN_MEMORY_DB
     with _DB_LOCK:
         if _IN_MEMORY_DB:
             return _IN_MEMORY_DB
 
         cloud_data = {}
+        cloud_loaded = False
         try:
             req = urllib.request.Request(CLOUD_DB_URL, headers={'Accept': 'application/json'})
-            with urllib.request.urlopen(req, context=SSL_CTX, timeout=5) as resp:
+            with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as resp:
                 raw = resp.read().decode('utf-8')
-                cloud_data = json.loads(raw) if raw else {}
+                if raw and raw.strip() and raw.strip() != "{}":
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, dict) and "access_codes" in parsed:
+                        cloud_data = parsed
+                        cloud_loaded = True
         except Exception as e:
             print(f"Cloud DB load warning: {e}")
 
-        local_data = {}
-        if os.path.exists(DB_FILE):
-            try:
-                with open(DB_FILE, "r", encoding="utf-8") as f:
-                    local_data = json.load(f)
-            except Exception as e:
-                print(f"Local DB load warning: {e}")
-
-        merged = merge_db(cloud_data if isinstance(cloud_data, dict) else {}, local_data if isinstance(local_data, dict) else {})
-        _IN_MEMORY_DB = merged
-        
-        # Save merged state to disk and cloud
-        try:
-            with open(DB_FILE, "w", encoding="utf-8") as f:
-                json.dump(merged, f, indent=2)
-        except Exception:
-            pass
-        sync_cloud_db(merged)
+        if cloud_loaded:
+            print("[CLOUD DB ACTIVE] Loaded live dynamic database state from Cloud DB!")
+            _IN_MEMORY_DB = cloud_data
+        else:
+            local_data = {}
+            if os.path.exists(DB_FILE):
+                try:
+                    with open(DB_FILE, "r", encoding="utf-8") as f:
+                        local_data = json.load(f)
+                except Exception:
+                    pass
+            _IN_MEMORY_DB = local_data if isinstance(local_data, dict) else {}
 
         return _IN_MEMORY_DB
 
