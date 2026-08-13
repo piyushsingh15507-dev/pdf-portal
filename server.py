@@ -1640,8 +1640,36 @@ def handle_protected_stream_proxy(self, parsed_url):
         s_req = urllib.request.Request(raw_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
         with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_resp:
             content_type = s_resp.headers.get("Content-Type", "video/mp4")
-            content_length = s_resp.headers.get("Content-Length")
             
+            # If HLS .m3u8 Playlist: Rewrite segment URLs to proxy through 15-minute protected tokens!
+            if ".m3u8" in raw_url or "mpegurl" in content_type.lower():
+                playlist_bytes = s_resp.read()
+                playlist_text = playlist_bytes.decode('utf-8', errors='ignore')
+                base_url = raw_url.rsplit('/', 1)[0] + '/'
+
+                rewritten_lines = []
+                for line in playlist_text.splitlines():
+                    l_strip = line.strip()
+                    if l_strip and not l_strip.startswith('#'):
+                        # Resolve segment full URL
+                        full_seg_url = urllib.parse.urljoin(base_url, l_strip)
+                        # Generate protected token for segment
+                        seg_token = generate_protected_stream_token(full_seg_url, client_ip)
+                        rewritten_lines.append(f"/api/stream-protected?token={seg_token}")
+                    else:
+                        rewritten_lines.append(line)
+
+                rewritten_body = "\n".join(rewritten_lines).encode('utf-8')
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.apple.mpegurl")
+                self.send_header("Content-Length", str(len(rewritten_body)))
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                self.end_headers()
+                self.wfile.write(rewritten_body)
+                return
+
+            # Direct MP4 / TS segment stream proxy
+            content_length = s_resp.headers.get("Content-Length")
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             if content_length:
