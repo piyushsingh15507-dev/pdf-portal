@@ -38,6 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentAdminSecret = sessionStorage.getItem('admin_secret') || localStorage.getItem('admin_secret') || '';
 
+    async function checkSupabaseStatus() {
+        const badge = document.getElementById('supabase-db-status-badge');
+        if (!badge) return;
+        try {
+            const res = await fetch('/api/admin/supabase-status');
+            const data = await res.json();
+            if (data.success) {
+                badge.innerText = data.status || (data.enabled ? '🟢 Supabase PostgreSQL Active' : '🟡 Cloud DB Fallback Active');
+                if (!data.enabled) {
+                    badge.style.background = 'rgba(245, 158, 11, 0.15)';
+                    badge.style.color = '#fbbf24';
+                    badge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+                }
+            }
+        } catch (err) {}
+    }
+
     if (!currentAdminSecret) {
         window.location.href = '/admin_login.html';
         return;
@@ -158,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAdminData() {
         if (!currentAdminSecret) return;
+        checkSupabaseStatus();
         try {
             const res = await fetch('/api/admin/get-data', {
                 headers: { 'X-Admin-Secret': currentAdminSecret }

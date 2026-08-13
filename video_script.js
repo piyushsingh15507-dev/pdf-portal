@@ -258,9 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
         videoGrid.innerHTML = html;
 
         document.querySelectorAll('.btn-play-video').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const title = btn.getAttribute('data-title');
-                const videoUrl = btn.getAttribute('data-url');
+                let videoUrl = btn.getAttribute('data-url');
                 const sName = localStorage.getItem('student_name') || sessionStorage.getItem('student_name') || 'Student';
                 const pCode = localStorage.getItem('student_passcode') || sessionStorage.getItem('student_passcode') || '';
 
@@ -275,6 +275,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ passcode: pCode, name: sName, pdf_title: `[VIDEO PLAY] ${title}` })
                     }).catch(() => {});
+                }
+
+                if (videoUrl && !videoUrl.includes('youtube') && !videoUrl.includes('embed') && !videoUrl.includes('/api/stream-protected')) {
+                    try {
+                        const tokenRes = await fetch('/api/protected-token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: videoUrl, passcode: pCode })
+                        });
+                        const tokenData = await tokenRes.json();
+                        if (tokenData.success && tokenData.protected_url) {
+                            videoUrl = tokenData.protected_url;
+                        }
+                    } catch (e) {}
                 }
 
                 const formattedUrl = formatEmbedVideoUrl(videoUrl);

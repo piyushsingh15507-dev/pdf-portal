@@ -27,3 +27,4 @@ list_*.py
 run_fresh_download.py
 Create_Zip.bat
 upload_to_github.bat
+*.mp4  

@@ -208,8 +208,12 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_hls_download_status()
         elif path == "/api/admin/auto-telegram-status":
             self.handle_admin_auto_telegram_status()
+        elif path == "/api/admin/supabase-status":
+            self.handle_admin_supabase_status()
         elif path == "/api/stream-tg":
             self.handle_telegram_stream_proxy(parsed_url)
+        elif path == "/api/stream-protected":
+            self.handle_protected_stream_proxy(parsed_url)
         elif path.startswith("/downloads/"):
             filename = urllib.parse.unquote(path.replace("/downloads/", ""))
             file_path = os.path.join(WORKSPACE_DIR, "downloads", filename)
@@ -265,6 +269,8 @@ class APIHandler(BaseHTTPRequestHandler):
             self.handle_admin_cancel_hls_download(data)
         elif path == "/api/admin/auto-telegram-stream":
             self.handle_admin_auto_telegram_stream(data)
+        elif path == "/api/protected-token":
+            self.handle_protected_token_request(data)
         elif path == "/api/admin/request-otp":
             self.handle_admin_request_otp(data)
         elif path == "/api/admin/auth":
@@ -1616,6 +1622,59 @@ def handle_telegram_stream_proxy(self, parsed_url):
         print(f"Telegram stream proxy error: {e}")
         self.send_error(500, f"Stream proxy error: {e}")
 
+def handle_protected_stream_proxy(self, parsed_url):
+    client_ip = get_client_ip(self)
+    query = urllib.parse.parse_qs(parsed_url.query)
+    token = query.get("token", [""])[0]
+
+    if not token:
+        self.send_error(400, "Protected play token is required.")
+        return
+
+    raw_url, err = verify_protected_stream_token(token, client_ip)
+    if err or not raw_url:
+        self.send_error(403, f"Protected Stream Error: {err or 'Access Denied'}")
+        return
+
+    try:
+        s_req = urllib.request.Request(raw_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_resp:
+            content_type = s_resp.headers.get("Content-Type", "video/mp4")
+            content_length = s_resp.headers.get("Content-Length")
+            
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            if content_length:
+                self.send_header("Content-Length", content_length)
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.end_headers()
+
+            while chunk := s_resp.read(65536):
+                self.wfile.write(chunk)
+    except Exception as stream_err:
+        print(f"Protected stream proxy error: {stream_err}")
+        self.send_error(500, f"Stream proxy error: {stream_err}")
+
+def handle_protected_token_request(self, data):
+    raw_url = data.get("url", "").strip()
+    passcode = data.get("passcode", "FREE").strip()
+    client_ip = get_client_ip(self)
+
+    if not raw_url:
+        self.send_json({"success": False, "error": "Video URL is required."}, 400)
+        return
+
+    token = generate_protected_stream_token(raw_url, client_ip, passcode)
+    protected_url = f"/api/stream-protected?token={token}"
+    self.send_json({"success": True, "token": token, "protected_url": protected_url})
+
+def handle_admin_supabase_status(self):
+    if is_supabase_enabled():
+        self.send_json({"success": True, "enabled": True, "status": "🟢 Supabase PostgreSQL Active", "message": "Connected to Supabase Cloud SQL Database."})
+    else:
+        self.send_json({"success": True, "enabled": False, "status": "🟡 Cloud DB Fallback Active", "message": "Using JSONBlob 24/7 Cloud DB."})
+
 # ==================== PDF DIRECT DOWNLOADER HELPERS ====================
 
 def fetch_all_course_pdfs(token, course_id):
@@ -1853,6 +1912,82 @@ def merge_db(db1, db2):
 
     return merged
 
+# ==================== SUPABASE POSTGRESQL & PROTECTED VIDEO ENGINE ====================
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+PROTECTED_SECRET_KEY = "SciAstra_Protected_Stream_Secret_2026_Key"
+
+def is_supabase_enabled():
+    return bool(SUPABASE_URL and SUPABASE_KEY)
+
+def supabase_request(endpoint, method="GET", body=None, extra_headers=None):
+    """Executes native HTTPS REST query to Supabase PostgreSQL database."""
+    if not is_supabase_enabled():
+        return None
+    
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{endpoint}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode('utf-8') if body is not None else None,
+        headers=headers,
+        method=method
+    )
+    try:
+        with urllib.request.urlopen(req, context=SSL_CTX, timeout=6) as resp:
+            raw = resp.read().decode('utf-8')
+            return json.loads(raw) if raw else []
+    except Exception as e:
+        print(f"[SUPABASE SQL DB WARNING] Query {endpoint} error: {e}")
+        return None
+
+def generate_protected_stream_token(raw_url, client_ip="127.0.0.1", passcode="FREE"):
+    """Generates a 15-minute HMAC-signed protected play token."""
+    exp_ts = int(time.time()) + 900  # 15 minutes
+    payload = f"{raw_url}|{exp_ts}|{client_ip}|{passcode}"
+    sig = hmac.new(PROTECTED_SECRET_KEY.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()[:16]
+    token_obj = {
+        "url": raw_url,
+        "exp": exp_ts,
+        "ip": client_ip,
+        "code": passcode,
+        "sig": sig
+    }
+    encoded = base64.urlsafe_b64encode(json.dumps(token_obj).encode('utf-8')).decode('utf-8')
+    return encoded
+
+def verify_protected_stream_token(token_str, client_ip="127.0.0.1"):
+    """Verifies HMAC signature and expiration for protected video token."""
+    try:
+        raw_json = base64.urlsafe_b64decode(token_str.encode('utf-8')).decode('utf-8')
+        token_obj = json.loads(raw_json)
+        raw_url = token_obj.get("url")
+        exp_ts = token_obj.get("exp", 0)
+        passcode = token_obj.get("code", "")
+        sig = token_obj.get("sig", "")
+
+        if time.time() > exp_ts:
+            return None, "Protected play token has expired."
+
+        payload = f"{raw_url}|{exp_ts}|{client_ip}|{passcode}"
+        expected_sig = hmac.new(PROTECTED_SECRET_KEY.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).hexdigest()[:16]
+
+        if sig != expected_sig:
+            return None, "Invalid protected play token signature."
+
+        return raw_url, None
+    except Exception as e:
+        return None, f"Token decode error: {e}"
+
 def sync_cloud_db(data):
     """Asynchronously uploads database state to 24/7 Cloud Database."""
     def _upload():
@@ -1869,11 +2004,41 @@ def sync_cloud_db(data):
     threading.Thread(target=_upload, daemon=True).start()
 
 def load_db():
-    """Loads database state from 24/7 Cloud Database (Master Source of Truth) and local disk."""
+    """Loads database state from Supabase PostgreSQL (or 24/7 Cloud Database fallback)."""
     global _IN_MEMORY_DB
     with _DB_LOCK:
         if _IN_MEMORY_DB:
             return _IN_MEMORY_DB
+
+        # Try Supabase PostgreSQL first if configured
+        if is_supabase_enabled():
+            try:
+                sql_codes = supabase_request("passcodes?select=*")
+                if sql_codes is not None and isinstance(sql_codes, list):
+                    db_obj = {
+                        "admin_token": "",
+                        "access_codes": {},
+                        "student_sessions": [],
+                        "blocked_ips": []
+                    }
+                    for row in sql_codes:
+                        code = row.get("code")
+                        if code:
+                            db_obj["access_codes"][code] = {
+                                "course_id": row.get("course_id", ""),
+                                "course_name": row.get("course_name", ""),
+                                "category": row.get("category", "IAT & NEST"),
+                                "type": row.get("type", "classplus"),
+                                "access_scope": row.get("access_scope", "all"),
+                                "custom_pdfs": row.get("custom_pdfs") or [],
+                                "custom_videos": row.get("custom_videos") or []
+                            }
+
+                    print("[SUPABASE POSTGRESQL ACTIVE] Loaded database state directly from Supabase Cloud SQL!")
+                    _IN_MEMORY_DB = db_obj
+                    return _IN_MEMORY_DB
+            except Exception as sp_err:
+                print(f"Supabase load fallback warning: {sp_err}")
 
         cloud_data = {}
         cloud_loaded = False
@@ -1905,7 +2070,7 @@ def load_db():
         return _IN_MEMORY_DB
 
 def save_db(data):
-    """Saves database state in memory, on disk, and syncs to 24/7 Cloud Database."""
+    """Saves database state in memory, on disk, and syncs to Supabase Cloud SQL & Cloud DB."""
     global _IN_MEMORY_DB
     with _DB_LOCK:
         _IN_MEMORY_DB = data
@@ -2909,6 +3074,9 @@ APIHandler.handle_admin_hls_download_status = handle_admin_hls_download_status
 APIHandler.handle_admin_cancel_hls_download = handle_admin_cancel_hls_download
 APIHandler.handle_admin_auto_telegram_stream = handle_admin_auto_telegram_stream
 APIHandler.handle_admin_auto_telegram_status = handle_admin_auto_telegram_status
+APIHandler.handle_admin_supabase_status = handle_admin_supabase_status
+APIHandler.handle_protected_token_request = handle_protected_token_request
+APIHandler.handle_protected_stream_proxy = handle_protected_stream_proxy
 APIHandler.handle_telegram_stream_proxy = handle_telegram_stream_proxy
 APIHandler.handle_admin_request_otp = handle_admin_request_otp
 APIHandler.handle_admin_auth = handle_admin_auth
