@@ -1914,8 +1914,8 @@ def merge_db(db1, db2):
 
 # ==================== SUPABASE POSTGRESQL & PROTECTED VIDEO ENGINE ====================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://rjdzszkplrwmzveslzyl.supabase.co").strip()
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_piS-K5-trDthSYwjo2iYFg_rewSsFJD").strip()
 PROTECTED_SECRET_KEY = "SciAstra_Protected_Stream_Secret_2026_Key"
 
 def is_supabase_enabled():
