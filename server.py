@@ -1593,12 +1593,13 @@ def handle_telegram_stream_proxy(self, parsed_url):
     bot_token = (db.get("telegram_bot_token") or "8789389995:AAGGD23ZzLOgrrgxTB8eg_QUgvHf-gzbDHE").strip()
 
     try:
-        get_file_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={file_id}"
+        file_id_clean = urllib.parse.quote(file_id.strip())
+        get_file_url = f"https://api.telegram.org/bot{bot_token}/getFile?file_id={file_id_clean}"
         req = urllib.request.Request(get_file_url)
         with urllib.request.urlopen(req, context=SSL_CTX, timeout=8) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             if not data.get("ok"):
-                self.send_error(404, "Telegram file not found")
+                self.send_error(404, f"Telegram file not found: {data.get('description', '')}")
                 return
             file_path = data.get("result", {}).get("file_path")
 
@@ -1618,6 +1619,18 @@ def handle_telegram_stream_proxy(self, parsed_url):
 
             while chunk := s_resp.read(65536):
                 self.wfile.write(chunk)
+    except urllib.error.HTTPError as http_err:
+        try:
+            err_body = http_err.read().decode('utf-8', errors='ignore')
+            err_json = json.loads(err_body)
+            desc = err_json.get("description", str(http_err))
+        except Exception:
+            desc = str(http_err)
+        
+        if "file is too big" in desc.lower():
+            self.send_error(400, "Telegram Bot API Restriction: Video file exceeds Telegram's 20 MB direct bot download limit. Please use a direct Stream URL (.m3u8), YouTube, or MP4 link for large lectures.")
+        else:
+            self.send_error(500, f"Telegram API error: {desc}")
     except Exception as e:
         print(f"Telegram stream proxy error: {e}")
         self.send_error(500, f"Stream proxy error: {e}")
