@@ -2446,7 +2446,22 @@ def start_telegram_poller_thread():
                                         send_real_telegram_otp(chat_id, otp, token)
                                         print(f"\n[TELEGRAM DYNAMIC HANDSHAKE SUCCESS] Chat ID: {chat_id} | OTP: {otp}\n")
                                 elif text == "/start":
-                                    send_real_telegram_otp(chat_id, f"Welcome <b>{first_name}</b>! Request an OTP on the Admin Login page to receive your code here.", token)
+                                    send_real_telegram_otp(chat_id, f"Welcome <b>{first_name}</b>! Request an OTP on the Admin Login page or send/forward any video here to get instant Video Stream URLs.", token)
+                                
+                                # Auto-Detect Sent / Forwarded Videos and Documents!
+                                video_obj = msg.get("video") or msg.get("document") or msg.get("animation")
+                                if video_obj and isinstance(video_obj, dict):
+                                    file_id = video_obj.get("file_id")
+                                    file_name = video_obj.get("file_name", "Video Lecture")
+                                    if file_id:
+                                        reply_msg = (
+                                            f"🎥 <b>Video Cloud Link Generated!</b>\n\n"
+                                            f"<b>File:</b> {file_name}\n\n"
+                                            f"<b>Copy Stream URL for Admin Panel:</b>\n"
+                                            f"<code>/api/stream-tg?file_id={file_id}</code>\n\n"
+                                            f"Paste this URL into Admin Panel → <b>Add Custom Video</b>!"
+                                        )
+                                        send_real_telegram_otp(chat_id, reply_msg, token)
             except Exception:
                 pass
             time.sleep(3)
