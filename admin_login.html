@@ -87,7 +87,7 @@
             <div id="otp-info-banner" class="hidden" style="margin-top: 14px; padding: 10px; background: rgba(0, 136, 204, 0.15); border: 1px solid rgba(0, 136, 204, 0.3); border-radius: 8px; color: #38bdf8; font-size: 0.85rem;"></div>
 
             <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
-                <a href="/student.html" style="color: #94a3b8; font-size: 0.85rem; text-decoration: none; font-weight: 500;">
+                <a href="/student" style="color: #94a3b8; font-size: 0.85rem; text-decoration: none; font-weight: 500;">
                     🎓 Go to Student Portal →
                 </a>
             </div>
@@ -148,7 +148,7 @@
                 fetch('/api/admin/get-data', {
                     headers: { 'X-Admin-Secret': existingSecret }
                 }).then(res => {
-                    if (res.ok) window.location.href = '/galactosidase_adadmiin.html';
+                    if (res.ok) window.location.href = '/galactosidase_adadmiin';
                 }).catch(() => {});
             }
 
@@ -176,7 +176,7 @@
                     if (data.success && data.secret) {
                         sessionStorage.setItem('admin_secret', data.secret);
                         localStorage.setItem('admin_secret', data.secret);
-                        window.location.href = '/galactosidase_adadmiin.html';
+                        window.location.href = '/galactosidase_adadmiin';
                     } else {
                         showError(data.error || 'Invalid Admin Master Password.');
                     }
@@ -282,7 +282,7 @@
                     if (data.success && data.secret) {
                         sessionStorage.setItem('admin_secret', data.secret);
                         localStorage.setItem('admin_secret', data.secret);
-                        window.location.href = '/galactosidase_adadmiin.html';
+                        window.location.href = '/galactosidase_adadmiin';
                     } else {
                         showError(data.error || 'Invalid or Expired Telegram OTP.');
                     }

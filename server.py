@@ -164,31 +164,31 @@ class APIHandler(BaseHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 
-        if path == "/" or path == "/student.html" or path == "/student":
+        if path in ["/", "/student", "/student.html"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "student.html"), "text/html")
         elif path == "/student_style.css":
             self.serve_file(os.path.join(WORKSPACE_DIR, "student_style.css"), "text/css")
         elif path == "/student_script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "student_script.js"), "application/javascript")
-        elif path in ["/galactosidase_adadmiin.html", "/galactosidase_adadmiin"]:
+        elif path in ["/galactosidase_adadmiin", "/galactosidase_adadmiin.html", "/admin"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "galactosidase_adadmiin.html"), "text/html")
-        elif path in ["/admin_login.html", "/admin_login"]:
+        elif path in ["/admin_login", "/admin_login.html", "/login"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_login.html"), "text/html")
         elif path == "/admin_style.css":
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_style.css"), "text/css")
         elif path == "/admin_script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "admin_script.js"), "application/javascript")
-        elif path == "/video.html" or path == "/video":
+        elif path in ["/video", "/video.html", "/player"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "video.html"), "text/html")
         elif path == "/video_script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "video_script.js"), "application/javascript")
-        elif path == "/index.html":
+        elif path in ["/index", "/index.html"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "index.html"), "text/html")
         elif path == "/style.css":
             self.serve_file(os.path.join(WORKSPACE_DIR, "style.css"), "text/css")
         elif path == "/script.js":
             self.serve_file(os.path.join(WORKSPACE_DIR, "script.js"), "application/javascript")
-        elif path == "/pdf_downloader.html" or path == "/pdf":
+        elif path in ["/pdf", "/pdf_downloader", "/pdf_downloader.html"]:
             self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_downloader.html"), "text/html")
         elif path == "/pdf_style.css":
             self.serve_file(os.path.join(WORKSPACE_DIR, "pdf_style.css"), "text/css")

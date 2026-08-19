@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!currentAdminSecret) {
-        window.location.href = '/admin_login.html';
+        window.location.href = '/admin_login';
         return;
     }
 
@@ -143,14 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
             currentAdminSecret = '';
             sessionStorage.removeItem('admin_secret');
             localStorage.removeItem('admin_secret');
-            window.location.href = '/admin_login.html';
+            window.location.href = '/admin_login';
         });
     }
 
     function hideDashboard() {
         sessionStorage.removeItem('admin_secret');
         localStorage.removeItem('admin_secret');
-        window.location.href = '/admin_login.html';
+        window.location.href = '/admin_login';
     }
 
     async function verifyAndLoadAdmin(secret) {
