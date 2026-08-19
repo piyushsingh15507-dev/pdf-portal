@@ -2912,6 +2912,8 @@ def normalize_video_url(url):
         v_id = url.split("youtu.be/")[1].split("?")[0].split("/")[0]
         if v_id:
             return f"https://www.youtube-nocookie.com/embed/{v_id}?rel=0&modestbranding=1&controls=1&enablejsapi=1"
+    elif "t.me/" in url and "embed=1" not in url:
+        return f"{url}&embed=1" if "?" in url else f"{url}?embed=1"
     return url
 
 def handle_admin_block_ip(self, data):

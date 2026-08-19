@@ -363,6 +363,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0&iv_load_policy=3&controls=1&enablejsapi=1`;
         }
 
+        if (url.includes('t.me/') && !url.includes('embed=1')) {
+            return url.includes('?') ? `${url}&embed=1` : `${url}?embed=1`;
+        }
+
         return url;
     }
 
