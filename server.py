@@ -2750,8 +2750,15 @@ def handle_admin_add_custom_pdf(self, data):
     db = load_db()
     access_codes = db.get("access_codes", {})
     if code not in access_codes:
-        self.send_json({"success": False, "error": f"Passcode '{code}' does not exist."}, 404)
-        return
+        access_codes[code] = {
+            "course_id": "",
+            "course_name": f"{code} Course",
+            "category": "Custom Courses",
+            "type": "custom",
+            "access_scope": "all",
+            "custom_pdfs": [],
+            "custom_videos": []
+        }
 
     info = access_codes[code]
     if "custom_pdfs" not in info:
@@ -2817,9 +2824,18 @@ def handle_admin_add_custom_video(self, data):
 
     db = load_db()
     access_codes = db.get("access_codes", {})
+    
+    # Auto-create passcode on the fly if it doesn't exist yet!
     if code not in access_codes:
-        self.send_json({"success": False, "error": f"Passcode '{code}' does not exist."}, 404)
-        return
+        access_codes[code] = {
+            "course_id": "",
+            "course_name": f"{code} Course",
+            "category": "Custom Courses",
+            "type": "custom",
+            "access_scope": "all",
+            "custom_pdfs": [],
+            "custom_videos": []
+        }
 
     info = access_codes[code]
     if "custom_videos" not in info:
