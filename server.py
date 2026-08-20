@@ -1651,7 +1651,8 @@ def handle_protected_stream_proxy(self, parsed_url):
 
     try:
         s_req = urllib.request.Request(raw_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        with urllib.request.urlopen(s_req, context=SSL_CTX, timeout=15) as s_resp:
+        ctx = SSL_CTX if raw_url.startswith("https://") else None
+        with urllib.request.urlopen(s_req, context=ctx, timeout=15) as s_resp:
             content_type = s_resp.headers.get("Content-Type", "video/mp4")
             
             # If HLS .m3u8 Playlist: Rewrite segment URLs to proxy through 15-minute protected tokens!
